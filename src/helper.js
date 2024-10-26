@@ -58,7 +58,15 @@ Object.defineProperties(this, {
   },
 })
 
-
+function allowImageReload() {
+  $$('img')
+  .forEach(s => {
+    s.onclick = e => {
+      if (e.target.complete && e.target.naturalWidth == 0)
+        e.target.src = `${e.target.src}?${Date.now()}`
+    }
+  })
+}
 
 
 
