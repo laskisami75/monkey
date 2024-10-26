@@ -67,7 +67,11 @@ function allowImageReload() {
     }
   })
 }
-
+function addStyle(s) {
+  const sty = elem('style', {}, s)
+  head.append(style)
+  return sty
+}
 
 
 
