@@ -66,10 +66,10 @@ ${css}
 </head>
 <body>
 ${html}
-<script type="text/javascript">
-(function() {
+<script type="module">
+//(function() {
 ${js}
-})();
+//})();
 </script>
 </body>
 </html>`;
