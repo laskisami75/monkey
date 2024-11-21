@@ -76,3 +76,10 @@ function elem(sel, ...children) {
   return el
 }
 //=============================================================
+
+Object.assign(window, {
+  arr, ent, obj,
+  $, $$,
+  html, serialize,
+  selector, elem,
+})
