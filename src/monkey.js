@@ -1,4 +1,9 @@
 
+const GeneratorFunction = function*(){}.constructor
+const Generator = function*(){}.constructor.prototype
+const AsyncGeneratorFunction = async function*(){}.constructor
+const AsyncGenerator = async function*(){}.constructor.prototype
+const AsyncFunction = async function(){}.constructor
 const ent = Object.entries
 const obj = Object.fromEntries
 const arr = Array.from
