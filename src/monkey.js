@@ -141,7 +141,7 @@ define(String.prototype, {
       i += m[0].length + m.index
     }
   },
-  trimStart(re = /\s+/) {
+  /*trimStart(re = /\s+/) {
     if (isstr(re))
       re = new RegExp(`^${RegExp.escape(re)}+`)
     else
@@ -157,7 +157,7 @@ define(String.prototype, {
   },
   trim(re = /\s+/) {
     return this.trimStart(re).trimEnd(re)
-  },
+  },*/
 })
 define(Number.prototype, {
   clamp(min, max) {
