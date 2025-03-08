@@ -116,6 +116,21 @@ function rewrite(text) {
   document.write(text)
   document.close()
 }
+function stopExecute(allowed = [location.origin]) {
+  new MutationObserver(muts => {
+    for (const m of muts) {
+      for (const n of m.addedNodes) {
+        if (n.localName == 'script') {
+          if (!allowed.some(s => n.src.startsWith(s))) {
+            n.textContent = ''
+            n.remove()
+          }
+        }
+      }
+    }
+  })
+  .observe(document, { childList: true, subtree: true })
+}
 
 //====== Utility async functions ======
 function wait(ms) {
