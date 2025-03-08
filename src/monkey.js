@@ -141,7 +141,7 @@ define(String.prototype, {
       i += m[0].length + m.index
     }
   },
-  /*trimStart(re = /\s+/) {
+  trimStart(re = /\s+/) {
     if (isstr(re))
       re = new RegExp(`^${RegExp.escape(re)}+`)
     else
@@ -157,7 +157,7 @@ define(String.prototype, {
   },
   trim(re = /\s+/) {
     return this.trimStart(re).trimEnd(re)
-  },*/
+  },
 })
 define(Number.prototype, {
   clamp(min, max) {
@@ -307,12 +307,11 @@ define(Element.prototype, {
     this.parentElement.insertBefore(other, temp)
   },
   closest(sel) {
-    if (isstr(sel))
-      sel = s => s.matches(sel)
+    let fn = isfn(sel) ? sel : s => s.matches(sel)
     
     let n = this
     while (n) {
-      if (sel(n))
+      if (fn(n))
         return n
       n = n.parentElement
     }
