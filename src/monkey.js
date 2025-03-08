@@ -18,9 +18,48 @@ const defProps = Object.defineProperties
 const defProp = Object.defineProperty
 
 // === Missing ===
-// Type functions
 // Math functions
 // Iterator extensions
+
+//====== Type functions ======
+function type(s) {
+  if (s === null)
+    return 'null'
+  if (s === undefined)
+    return 'undefined'
+  if (Array.isArray(s))
+    return 'array'
+  if (s.constructor == Generator)
+    return 'generator'
+  if (s instanceof Element)
+    return 'element'
+  if (s instanceof Map)
+    return 'map'
+  if (typeof s == 'object' && has(s, Symbol.iterator))
+    return 'iterator'
+  return typeof s
+}
+function whatis(s) {
+  if (s === null)
+    return 'null'
+  if (s === undefined)
+    return 'undefined'
+  return Object.prototype.toString.call(s).slice(8, -1)
+}
+function isnull(s) { return s == null }
+function isundef(s) { return s == undefined }
+function isstr(s) { return type(s) == 'string' }
+function isnum(s) { return type(s) == 'number' }
+function isbool(s) { return type(s) == 'boolean' }
+function issym(s) { return type(s) == 'symbol' }
+function isobj(s) { return type(s) == 'object' }
+function isfn(s) { return type(s) == 'function' }
+function isarr(s) { return type(s) == 'array' }
+function isgen(s) { return type(s) == 'generator' }
+function isiter(s) { return type(s) == 'iterator' }
+function iselem(s) { return type(s) == 'element' }
+function ismap(s) { return type(s) == 'map' }
+function isprim(s) { return isnull(s) || isundef(s) || isstr(s) || isnum(s) || isbool(s) || issym(s) }
 
 //====== Utility functions ======
 function define(type, defs) {
@@ -28,6 +67,11 @@ function define(type, defs) {
 }
 function style(css) {
   head.append(elem('style', css))
+}
+function rewrite(text) {
+  document.open()
+  document.write(text)
+  document.close()
 }
 
 //====== Utility async functions ======
