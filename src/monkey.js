@@ -143,7 +143,7 @@ function GM_fetch(url) {
     GM_xmlhttpRequest({
       url,
       onload(e) {
-        resolve(html(e.responseText))
+        resolve(e.responseText.parseHTML())
       }
     })
   })
