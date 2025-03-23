@@ -108,13 +108,25 @@ function isprim(s) { return isnull(s) || isundef(s) || isstr(s) || isnum(s) || i
 function define(type, defs) {
   return defProps(type, getDescs(defs))
 }
-function style(css) {
-  head.append(elem('style', css))
-}
 function rewrite(text) {
   document.open()
   document.write(text)
   document.close()
+}
+function deentity(text) {
+  const el = elem('textarea')
+  el.innerHTML = text
+  const str = el.value
+  el.remove()
+  return str
+}
+function entity(text) {
+  return text
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+}
+function copy(text) {
+  navigator.clipboard.writeText(text)
 }
 function stopExecute(allowed = [location.origin]) {
   new MutationObserver(muts => {
