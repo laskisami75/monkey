@@ -236,9 +236,10 @@ define(String.prototype, {
             this.rep[i] = this.rep[i].replace(re, repl)
         },
         unmask(str) {
+          const rep = this.rep
           function _unmask(str) {
-            for (let i = 0; i < this.rep.length; i++)
-              str = str.replace(regex`(?<!\0)\0${char(i+1)}`, this.rep[i])
+            for (let i = 0; i < rep.length; i++)
+              str = str.replace(regex`(?<!\0)\0${char(i+1)}`, rep[i])
             str = str.replaceAll('\0\0', '\0')
             return str
           }
