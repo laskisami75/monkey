@@ -72,22 +72,19 @@ function type(s) {
     return 'undefined'
   if (Array.isArray(s))
     return 'array'
-  if (s.constructor == Generator)
-    return 'generator'
-  if (s instanceof Element)
-    return 'element'
-  if (s instanceof Map)
-    return 'map'
+  if (typeof s == 'object' && is(s, RegExp))
+    return 'regex'
   if (typeof s == 'object' && has(s, Symbol.iterator))
     return 'iterator'
   return typeof s
 }
 function whatis(s) {
-  if (s === null)
-    return 'null'
-  if (s === undefined)
-    return 'undefined'
+  if (isctor(s))
+    return `${s.name}`
   return Object.prototype.toString.call(s).slice(8, -1)
+}
+function is(s, t) {
+  return s instanceof t
 }
 function isnull(s) { return s == null }
 function isundef(s) { return s == undefined }
@@ -98,19 +95,30 @@ function issym(s) { return type(s) == 'symbol' }
 function isobj(s) { return type(s) == 'object' }
 function isfn(s) { return type(s) == 'function' }
 function isarr(s) { return type(s) == 'array' }
-function isgen(s) { return type(s) == 'generator' }
 function isiter(s) { return type(s) == 'iterator' }
-function iselem(s) { return type(s) == 'element' }
-function ismap(s) { return type(s) == 'map' }
+function isregex(s) { return type(s) == 'regex' }
+function isgen(s) { return is(s, Generator) }
 function isprim(s) { return isnull(s) || isundef(s) || isstr(s) || isnum(s) || isbool(s) || issym(s) }
 
 //====== Utility functions ======
 function define(type, defs) {
   return defProps(type, getDescs(defs))
 }
-function rewrite(text) {
+function char(i) {
+  return String.fromCharCode(i)
+}
+function rewrite(css, js, html) {
   document.open()
-  document.write(text)
+  document.write(`<!DOCTYPE html>
+  <html>
+  <head>
+  ${css}
+  ${js}
+  </head>
+  <body>
+  ${html}
+  </body>
+  </html>`)
   document.close()
 }
 function deentity(text) {
@@ -166,6 +174,13 @@ function raw(strings, ...rest) {
   const raw = strings.raw.map(s => s.replaceAll(String.raw`\$`, '$'))
   return String.raw({ raw }, ...rest)
 }
+function regex(flag, ...rest) {
+  if (!isstr(flag))
+    return regex('')(flag, ...rest)
+  return (strings, ...rest) => {
+    return new RegExp(raw(strings, ...rest), flag)
+  }
+}
 function imp(strings, ...rest) {
   return String.raw(strings, ...rest)
     .replaceAll('!important', '')
@@ -205,6 +220,36 @@ define(String.prototype, {
       
       i += m[0].length + m.index
     }
+  },
+  mask(re) {
+    return this.matchAll(re)
+      .reduce((s, n, i) => {
+        s.str = s.str.replace(n[0], `\0${char(i+1)}`)
+        s.rep.push(n[0])
+        return s
+      },
+      {
+        str: this.replaceAll('\0', '\0\0'),
+        rep: [],
+        replaceMask(re, repl) {
+          for (let i = 0; i < this.rep.length; i++)
+            this.rep[i] = this.rep[i].replace(re, repl)
+        },
+        unmask(str) {
+          function _unmask(str) {
+            for (let i = 0; i < this.rep.length; i++)
+              str = str.replace(regex`(?<!\0)\0${char(i+1)}`, this.rep[i])
+            str = str.replaceAll('\0\0', '\0')
+            return str
+          }
+          
+          str ??= this.str
+          if (isstr(str))
+            return _unmask(str)
+          else if (isarr(str))
+            return str.map(s => _unmask(s))
+        },
+      })
   },
   trimStart(re = /\s+/) {
     if (isstr(re))
@@ -383,7 +428,9 @@ define(Element.prototype, {
   },
 })
 define(Node.prototype, {
-  
+  serialize() {
+    return new XMLSerializer().serializeToString(this)
+  },
 })
 define(EventTarget.prototype, {
   dispatch(type, props = {}) {
