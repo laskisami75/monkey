@@ -1,4 +1,4 @@
-
+// version 2
 const GeneratorFunction = function*(){}.constructor
 const Generator = function*(){}.constructor.prototype
 const AsyncGeneratorFunction = async function*(){}.constructor
@@ -136,6 +136,18 @@ function entity(text) {
 function copy(text) {
   navigator.clipboard.writeText(text)
 }
+function saveAs(blob, name) {
+  const a = elem('a[style="display: none;"]')
+  const url = URL.createObjectURL(blob)
+  a.href = url
+  a.download = name
+  
+  body.append(a)
+  a.click()
+  
+  a.remove()
+  URL.revokeObjectURL(url)
+}
 function stopExecute(allowed = [location.origin]) {
   new MutationObserver(muts => {
     for (const m of muts) {
@@ -163,7 +175,7 @@ function GM_fetch(url) {
     GM_xmlhttpRequest({
       url,
       onload(e) {
-        resolve(e.responseText.parseHTML())
+        resolve(e.responseText)
       }
     })
   })
