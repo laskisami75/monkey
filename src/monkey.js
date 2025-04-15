@@ -1,4 +1,5 @@
-// version 2
+// Version 25
+
 const GeneratorFunction = function*(){}.constructor
 const Generator = function*(){}.constructor.prototype
 const AsyncGeneratorFunction = async function*(){}.constructor
@@ -170,12 +171,13 @@ function wait(ms) {
     setTimeout(resolve, ms)
   })
 }
-function GM_fetch(url) {
+function GM_fetch(url, opt = {}) {
   return new Promise(resolve => {
     GM_xmlhttpRequest({
+      ...opt,
       url,
       onload(e) {
-        resolve(e.responseText)
+        resolve(e.response)
       }
     })
   })
@@ -346,7 +348,7 @@ function selector(sel) {
     })
 }
 function elem(sel, ...children) {
-  const { tag, id, classes, attribs } = selector(sel)
+  const { tag, id, classes, attribs } = selector(sel ?? 'div')
   const el = document.createElement(tag)
   if (id)
     el.id = id
