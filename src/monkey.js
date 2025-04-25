@@ -1,4 +1,6 @@
-// Version 29
+
+const MONKEY_VERSION = 31
+console.info(`Monkey version: ${MONKEY_VERSION}`)
 
 //====== Shorthands ======
 const GeneratorFunction = function*(){}.constructor
@@ -494,7 +496,7 @@ function selector(sel) {
     })
 }
 function elem(sel, ...children) {
-  const { tag, id, classes, attribs } = selector(sel ?? 'div')
+  const { tag, id, classes, attribs } = selector(sel ?? '')
   const el = document.createElement(tag)
   if (id) {
     el.id = id
@@ -502,7 +504,8 @@ function elem(sel, ...children) {
   }
   if (classes.length > 0)
     el.classList.add(...classes)
-  attribs.forEach(s => el.setAttribute(s.name, s.value))
+  for (const attr of attribs)
+    el.setAttribute(attr.name, attr.value)
   el.append(...children.filter(s => s))
   return el
 }
@@ -531,7 +534,7 @@ define(Window.prototype, {
         .flatMap(s => arr(s.classList))
         .reduce((s, n) => s.set(n, (s.get(n) ?? 0) + 1), new Map())
         .entries())
-        .sort((a, b) => a[1] - b[1])
+        .sort((a, b) => b[1] - a[1])
   },
   fromPoint(x, y) {
     return this.elementFromPoint(x, y)
