@@ -1,4 +1,4 @@
-// Version 28
+// Version 29
 
 //====== Shorthands ======
 const GeneratorFunction = function*(){}.constructor
@@ -23,11 +23,6 @@ const getDescs = Object.getOwnPropertyDescriptors
 const getDesc = Object.getOwnPropertyDescriptor
 const defProps = Object.defineProperties
 const defProp = Object.defineProperty
-
-//====== About this file ======
-define(globalThis, {
-  VERSION: 28,
-})
 
 // === Missing ===
 // Math functions
@@ -155,11 +150,16 @@ const dialogCss = `
 .dialog {
   position: fixed;
   inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: rgb(0 0 0 / .4);
   z-index: 9000;
 }
 .dialog > * {
+  width: 50%;
   background: var(--back);
+  border-radius: .4em;
 }
 .stack {
   display: grid;
@@ -178,7 +178,7 @@ const dialogCss = `
 button {
   font-size: 1em;
   padding: .5em 1.25em;
-  border-radius: .3em;
+  border-radius: .4em;
   background: var(--dark);
   user-select: none;
   outline: none;
@@ -527,13 +527,11 @@ define(Window.prototype, {
     return this.document.body
   },
   get classCounts() {
-    return obj(
-      $$('[class]')
+    return arr($$('[class]')
         .flatMap(s => arr(s.classList))
         .reduce((s, n) => s.set(n, (s.get(n) ?? 0) + 1), new Map())
-        .entries()
+        .entries())
         .sort((a, b) => a[1] - b[1])
-    )
   },
   fromPoint(x, y) {
     return this.elementFromPoint(x, y)
