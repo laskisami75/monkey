@@ -1,9 +1,4 @@
-// Version 27
-
-//====== About this file ======
-define(globalThis, {
-  VERSION: 27,
-})
+// Version 28
 
 //====== Shorthands ======
 const GeneratorFunction = function*(){}.constructor
@@ -28,6 +23,11 @@ const getDescs = Object.getOwnPropertyDescriptors
 const getDesc = Object.getOwnPropertyDescriptor
 const defProps = Object.defineProperties
 const defProp = Object.defineProperty
+
+//====== About this file ======
+define(globalThis, {
+  VERSION: 28,
+})
 
 // === Missing ===
 // Math functions
