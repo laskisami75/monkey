@@ -1,5 +1,11 @@
-// Version 25
+// Version 27
 
+//====== About this file ======
+define(globalThis, {
+  VERSION: 27,
+})
+
+//====== Shorthands ======
 const GeneratorFunction = function*(){}.constructor
 const Generator = function*(){}.constructor.prototype
 const AsyncGeneratorFunction = async function*(){}.constructor
@@ -101,6 +107,108 @@ function isregex(s) { return type(s) == 'regex' }
 function isgen(s) { return is(s, Generator) }
 function isprim(s) { return isnull(s) || isundef(s) || isstr(s) || isnum(s) || isbool(s) || issym(s) }
 
+//====== Style management =======
+function styled(styleObj) {
+  function hasStyles(el) {
+    const comp = getComputedStyle(el)
+    return ent(styleObj)
+      .every(([key, val]) => comp.getPropertyValue(key) == val)
+  }
+  return $$('*')
+    .filter(el => hasStyles(el))
+}
+function styleDelta(el) {
+  const div = elem('[style="display: none !important"]')
+  const shadow = div.attachShadow({ mode: 'open' })
+  const unstyled = elem(el.localName)
+  
+  body.append(div)
+  shadow.append(unstyled)
+  
+  const defStyle = unstyled.computedStyle
+  const elemStyle = el.computedStyle
+  for (const key of keys(elemStyle)) {
+    if (defStyle[key] == elemStyle[key])
+      delete elemStyle[key]
+  }
+  
+  div.remove()
+  
+  return elemStyle
+}
+
+//====== UI helpers ======
+const dialogCss = `
+:root {
+  --text: #e3e9f1;
+  --back: #1e2949;
+  --dark: #0b1926;
+  --actv: #2a3b7e;
+  --high: #008dd5;
+}
+* {
+  box-sizing: border-box;
+  color: var(--text);
+  margin: 0;
+}
+
+.dialog {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / .4);
+  z-index: 9000;
+}
+.dialog > * {
+  background: var(--back);
+}
+.stack {
+  display: grid;
+}
+.group {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+}
+
+.p1 { padding:  .3rem; gap:  .3rem; }
+.p2 { padding:  .6rem; gap:  .6rem; }
+.p3 { padding:  .9rem; gap:  .9rem; }
+.p4 { padding: 1.2rem; gap: 1.2rem; }
+
+button {
+  font-size: 1em;
+  padding: .5em 1.25em;
+  border-radius: .3em;
+  background: var(--dark);
+  user-select: none;
+  outline: none;
+  border: none;
+  transition: background .15s linear;
+}
+button.active {
+  background: var(--actv);
+}
+`
+function dialog() {
+  const root = elem('div')
+  const shadow = root.attachShadow({ mode: 'open' })
+  
+  const style = elem('style', dialogCss)
+  const dlg = elem('.dialog',
+    elem('.stack.p2',
+      elem('button#vp20', '2.0x viewport'),
+      elem('button#vp15', '1.5x viewport'),
+      elem('button#vp10', '1.0x viewport'),
+      elem('button#edit', 'Open editor'),
+    )
+  )
+  
+  dlg.onclick = e => e.target == dlg && root.remove()
+  
+  shadow.append(style, dlg)
+  return root
+}
+
 //====== Utility functions ======
 function define(type, defs) {
   return defProps(type, getDescs(defs))
@@ -134,11 +242,19 @@ function entity(text) {
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
 }
-function copy(text) {
-  navigator.clipboard.writeText(text)
+function range(a, b) {
+  if (b == undefined)
+    return range(0, a)
+  return Array.from({ length: b - a }, (_, i) => a + i)
+}
+function html(text) {
+  return new DOMParser().parseFromString(text, 'text/html')
+}
+function xml(text) {
+  return new DOMParser().parseFromString(text, 'text/xml')
 }
 function saveAs(blob, name) {
-  const a = elem('a[style="display: none;"]')
+  const a = elem('a[style="display: none"]')
   const url = URL.createObjectURL(blob)
   a.href = url
   a.download = name
@@ -164,6 +280,9 @@ function stopExecute(allowed = [location.origin]) {
   })
   .observe(document, { childList: true, subtree: true })
 }
+function animate() {
+  //TODO
+}
 
 //====== Utility async functions ======
 function wait(ms) {
@@ -183,6 +302,35 @@ function GM_fetch(url, opt = {}) {
   })
 }
 
+//====== Observer helpers ======
+function mutationObserver(root, sel, fn) {
+  if (fn == undefined) {
+    fn = sel
+    sel = undefined
+  }
+  const obs = new MutationObserver(muts => {
+    for (const m of muts) {
+      for (const n of m.addedNodes) {
+        if (sel == undefined || n.matches(sel))
+          fn(n)
+      }
+    }
+  })
+  const opt = { childList: true, subtree: true }
+  obs.observe(root, opt)
+  return obs
+}
+function attributeObserver(root, fn, ...names) {
+  const obs = new MutationObserver(muts => {
+    for (const m of muts) {
+      fn(m.target, m.attributeName)
+    }
+  })
+  const opt = { attributes: true, subtree: true,  attributeFilter: names || undefined }
+  obs.observe(root, opt)
+  return obs
+}
+
 //====== Utility tagged templates ======
 function raw(strings, ...rest) {
   const raw = strings.raw.map(s => s.replaceAll(String.raw`\$`, '$'))
@@ -198,7 +346,8 @@ function regex(flag, ...rest) {
 function imp(strings, ...rest) {
   return String.raw(strings, ...rest)
     .replaceAll('!important', '')
-    .replaceAll(';', '!important;')
+    .replaceAll(';', ' !important;')
+    .replaceAll(' !unimportant !important;', ';')
 }
 
 //====== Utility extensions ======
@@ -209,10 +358,10 @@ define(RegExp, {
 })
 define(String.prototype, {
   toInt() {
-    return parseInt(this)
+    return parseInt(this.match(/(-?\d+)/)[0])
   },
   toFloat() {
-    return parseFloat(this)
+    return parseFloat(this.match(/(-?\.\d+)|(-?\d+\.\d+)|(-?\d+)/)[0])
   },
   toNumbers() {
     return this.match(/(-?\.\d+)|(-?\d+\.\d+)|(-?\d+)/g)
@@ -220,9 +369,6 @@ define(String.prototype, {
   },
   test(re) {
     return re.test(this)
-  },
-  parseHTML() {
-    return new DOMParser().parseFromString(this, 'text/html')
   },
   *seqMatch(...rest) {
     let i = 0
@@ -268,16 +414,16 @@ define(String.prototype, {
   },
   trimStart(re = /\s+/) {
     if (isstr(re))
-      re = new RegExp(`^${RegExp.escape(re)}+`)
+      re = regex`^(?:${RegExp.escape(re)})+`
     else
-      re = new RegExp(`^${re.source.replace(/^\^/, '')}`)
+      re = regex`^${re.source.replace(/^\^/, '')}`
     return this.replace(re, '')
   },
   trimEnd(re = /\s+/) {
     if (isstr(re))
-      re = new RegExp(`${RegExp.escape(re)}+$`)
+      re = regex`(?:${RegExp.escape(re)})+$`
     else
-      re = new RegExp(`${re.source.replace(/\$$/, '')}\$`)
+      re = regex`${re.source.replace(/\$$/, '')}$`
     return this.replace(re, '')
   },
   trim(re = /\s+/) {
@@ -350,11 +496,18 @@ function selector(sel) {
 function elem(sel, ...children) {
   const { tag, id, classes, attribs } = selector(sel ?? 'div')
   const el = document.createElement(tag)
-  if (id)
+  if (id) {
     el.id = id
+    elem[id] = el
+  }
   if (classes.length > 0)
     el.classList.add(...classes)
   attribs.forEach(s => el.setAttribute(s.name, s.value))
+  el.append(...children.filter(s => s))
+  return el
+}
+function frag(...children) {
+  const el = new DocumentFragment()
   el.append(...children.filter(s => s))
   return el
 }
@@ -373,25 +526,17 @@ define(Window.prototype, {
   get body() {
     return this.document.body
   },
-  get html() {
-    return new XMLSerializer().serializeToString(this.document)
+  get classCounts() {
+    return obj(
+      $$('[class]')
+        .flatMap(s => arr(s.classList))
+        .reduce((s, n) => s.set(n, (s.get(n) ?? 0) + 1), new Map())
+        .entries()
+        .sort((a, b) => a[1] - b[1])
+    )
   },
-  get scrollableElements() {
-    return $$('*')
-      .filter(s => s.scrollable)
-  },
-  getClassCounts() {
-    return $$('[class]')
-      .flatMap(s => arr(s.classList))
-      .reduce((s, n) => {
-        if (!has(s, n))
-          s[n] = 0
-        s[n] += 1
-        return s
-      }, {})
-  },
-  elemFrom(x, y) {
-    return document.elementFromPoint(x, y)
+  fromPoint(x, y) {
+    return this.elementFromPoint(x, y)
   },
 })
 define(Element.prototype, {
@@ -419,6 +564,10 @@ define(Element.prototype, {
   get scrolledToEnd() {
     return n.scrollHeight - n.scrollTop <= n.rect.height
   },
+  get computedStyle() {
+    const comp = getComputedStyle(this)
+    return arr(comp).reduce((s, n) => assign(s, { [n]: comp[n] }), {})
+  },
   *chain() {
     let node = this
     while (node) {
@@ -427,9 +576,9 @@ define(Element.prototype, {
     }
   },
   swap(other) {
-    const temp = this.nextElementSibling
-    this.parentElement.insertBefore(this, other.nextElementSibling)
-    this.parentElement.insertBefore(other, temp)
+    const temp = this.next
+    this.parent.insertBefore(this, other.next)
+    this.parent.insertBefore(other, temp)
   },
   closest(sel) {
     let fn = isfn(sel) ? sel : s => s.matches(sel)
@@ -440,6 +589,46 @@ define(Element.prototype, {
         return n
       n = n.parentElement
     }
+  },
+  append(...rest) {
+    for (const child of rest) {
+      if (isstr(child))
+        this.insertAdjacentText('beforeend', child)
+      else
+        this.insertAdjacentElement('beforeend', child)
+    }
+    return this
+  },
+  prepend(...rest) {
+    for (const child of rest.reverse()) {
+      if (isstr(child))
+        this.insertAdjacentText('afterbegin', child)
+      else
+        this.insertAdjacentElement('afterbegin', child)
+    }
+    return this
+  },
+  after(...rest) {
+    for (const child of rest) {
+      if (isstr(child))
+        this.insertAdjacentText('afterend', child)
+      else
+        this.insertAdjacentElement('afterend', child)
+    }
+    return this
+  },
+  before(...rest) {
+    for (const child of rest.reverse()) {
+      if (isstr(child))
+        this.insertAdjacentText('beforebegin', child)
+      else
+        this.insertAdjacentElement('beforebegin', child)
+    }
+    return this
+  },
+  fromPoint(x, y) {
+    return document.elementsFromPoint(x, y)
+      .filter(s => this.contains(s))
   },
 })
 define(Node.prototype, {
