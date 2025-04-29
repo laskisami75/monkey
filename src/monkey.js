@@ -1,5 +1,5 @@
 
-const MONKEY_VERSION = 33
+const MONKEY_VERSION = 34
 console.log(`Monkey version: ${MONKEY_VERSION}`)
 
 //====== Shorthands ======
@@ -598,11 +598,6 @@ define(Node.prototype, {
   },
 })
 define(EventTarget.prototype, {
-  _addEventListener: EventTarget.prototype.addEventListener,
-  addEventListener(type, handler, options) {
-    this._addEventListener(type, handler, options)
-    return () => this.removeEventListener(type, handler, options)
-  },
   dispatch(type, props = {}) {
     this.dispatchEvent(new (class extends Event {
       constructor() {
