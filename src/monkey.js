@@ -1,5 +1,5 @@
 
-const MONKEY_VERSION = 32
+const MONKEY_VERSION = 33
 console.log(`Monkey version: ${MONKEY_VERSION}`)
 
 //====== Shorthands ======
@@ -492,7 +492,7 @@ function selector(sel = '') {
   return output
 }
 function elem(sel, ...children) {
-  const { tag, id, classes, attribs } = selector(sel ?? '')
+  const { tag, id, classes, attrs } = selector(sel ?? '')
   const el = document.createElement(tag)
   if (id) {
     el.id = id
@@ -500,7 +500,7 @@ function elem(sel, ...children) {
   }
   if (classes.length > 0)
     el.classList.add(...classes)
-  for (const attr of attribs)
+  for (const attr of attrs)
     el.setAttribute(attr.name, attr.value)
   el.append(...children.filter(s => s))
   return el
