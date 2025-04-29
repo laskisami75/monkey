@@ -1,6 +1,6 @@
 
-const MONKEY_VERSION = 31
-console.info(`Monkey version: ${MONKEY_VERSION}`)
+const MONKEY_VERSION = 32
+console.log(`Monkey version: ${MONKEY_VERSION}`)
 
 //====== Shorthands ======
 const GeneratorFunction = function*(){}.constructor
@@ -467,33 +467,29 @@ function $(sel, root) {
 function $$(sel, root) {
   return arr((root ?? document).querySelectorAll(sel))
 }
-function selector(sel) {
-  return sel.seqMatch(
-      /^\[(?<name>[^=]+)="(?<value>[^"]+)"\]/,
-      /^\[(?<name>[^=]+)='(?<value>[^']+)'\]/,
-      /^\[(?<name>[^=]+)=(?<value>\S+)\]/,
-      /^\[(?<name>[^=]+)(?<value>)\]/,
-      /^\.(?<class>[^\.\#\[\]]+)/,
-      /^\#(?<id>[^\.\#\[\]]+)/,
-      /^(?<tag>[^\.\#\[\]]+)/,
-    )
-    .map(s => s.groups)
-    .reduce((s, n, i) => {
-      if (n.tag && i == 0)
-        s.tag = n.tag
-      if (n.id)
-        s.id = n.id
-      if (n['class'])
-        s.classes.push(n['class'])
-      if (n._name)
-        s.attribs.push(n)
-      return s
-    },
-    {
-      tag: 'div',
-      classes: [],
-      attribs: [],
-    })
+function selector(sel = '') {
+  const masked = sel.trim().mask(/"[^"]+"|'[^']+'/g)
+  const parts = masked.unmask(masked.str.split(/(?=\#|\.|\[)/g))
+  const output = {
+    tag: 'div',
+    classes: [],
+    attrs: [],
+  }
+  function attr(s) {
+    const [name, value] = [...s.slice(1, -1).split('='), '']
+    return { name, value: value.trim('"').trim('\'') }
+  }
+  for (const part of parts) {
+    if (part.startsWith('#'))
+      output.id = part.slice(1)
+    else if (part.startsWith('.'))
+      output.classes.push(part.slice(1))
+    else if (part.startsWith('['))
+      output.attrs.push(attr(part))
+    else
+      output.tag = part
+  }
+  return output
 }
 function elem(sel, ...children) {
   const { tag, id, classes, attribs } = selector(sel ?? '')
@@ -591,42 +587,6 @@ define(Element.prototype, {
       n = n.parentElement
     }
   },
-  append(...rest) {
-    for (const child of rest) {
-      if (isstr(child))
-        this.insertAdjacentText('beforeend', child)
-      else
-        this.insertAdjacentElement('beforeend', child)
-    }
-    return this
-  },
-  prepend(...rest) {
-    for (const child of rest.reverse()) {
-      if (isstr(child))
-        this.insertAdjacentText('afterbegin', child)
-      else
-        this.insertAdjacentElement('afterbegin', child)
-    }
-    return this
-  },
-  after(...rest) {
-    for (const child of rest) {
-      if (isstr(child))
-        this.insertAdjacentText('afterend', child)
-      else
-        this.insertAdjacentElement('afterend', child)
-    }
-    return this
-  },
-  before(...rest) {
-    for (const child of rest.reverse()) {
-      if (isstr(child))
-        this.insertAdjacentText('beforebegin', child)
-      else
-        this.insertAdjacentElement('beforebegin', child)
-    }
-    return this
-  },
   fromPoint(x, y) {
     return document.elementsFromPoint(x, y)
       .filter(s => this.contains(s))
@@ -638,6 +598,11 @@ define(Node.prototype, {
   },
 })
 define(EventTarget.prototype, {
+  _addEventListener: EventTarget.prototype.addEventListener,
+  addEventListener(type, handler, options) {
+    this._addEventListener(type, handler, options)
+    return () => this.removeEventListener(type, handler, options)
+  },
   dispatch(type, props = {}) {
     this.dispatchEvent(new (class extends Event {
       constructor() {
