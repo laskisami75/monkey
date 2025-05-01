@@ -1,5 +1,5 @@
 
-const MONKEY_VERSION = 34
+const MONKEY_VERSION = 35
 console.log(`Monkey version: ${MONKEY_VERSION}`)
 
 //====== Shorthands ======
@@ -105,11 +105,10 @@ function isgen(s) { return is(s, Generator) }
 function isprim(s) { return isnull(s) || isundef(s) || isstr(s) || isnum(s) || isbool(s) || issym(s) }
 
 //====== Style management =======
-function styled(styleObj) {
+function styled(style) {
   function hasStyles(el) {
-    const comp = getComputedStyle(el)
-    return ent(styleObj)
-      .every(([key, val]) => comp.getPropertyValue(key) == val)
+    const comp = el.computedStyle
+    return ent(style).every(([key, val]) => comp[key] == val)
   }
   return $$('*')
     .filter(el => hasStyles(el))
@@ -328,7 +327,7 @@ function attributeObserver(root, fn, ...names) {
       fn(m.target, m.attributeName)
     }
   })
-  const opt = { attributes: true, subtree: true,  attributeFilter: names || undefined }
+  const opt = { attributes: true, subtree: true, attributeFilter: names || undefined }
   obs.observe(root, opt)
   return obs
 }
@@ -511,6 +510,21 @@ function frag(...children) {
   return el
 }
 
+//====== Collections ======
+define(Window.prototype, {
+  get classCounts() {
+    return arr($$('[class]')
+        .flatMap(s => arr(s.classList))
+        .reduce((s, n) => s.set(n, (s.get(n) ?? 0) + 1), new Map())
+        .entries())
+        .sort((a, b) => b[1] - a[1])
+  },
+  get allFixedPos() {
+    return $$('*')
+      .filter(s => s.computedStyle.position == 'fixed' || s.computedStyle.position == 'sticky')
+  },
+})
+
 //====== DOM extensions ======
 define(Window.prototype, {
   get doc() {
@@ -524,13 +538,6 @@ define(Window.prototype, {
   },
   get body() {
     return this.document.body
-  },
-  get classCounts() {
-    return arr($$('[class]')
-        .flatMap(s => arr(s.classList))
-        .reduce((s, n) => s.set(n, (s.get(n) ?? 0) + 1), new Map())
-        .entries())
-        .sort((a, b) => b[1] - a[1])
   },
   fromPoint(x, y) {
     return this.elementFromPoint(x, y)
@@ -550,7 +557,15 @@ define(Element.prototype, {
     return this.getBoundingClientRect()
   },
   get mark() {
+    if (this.innerHTML == '')
+      return this.outerHTML
     return this.outerHTML.replace(this.innerHTML, '…')
+  },
+  get text() {
+    return this.textContent
+  },
+  set text(value) {
+    this.textContent = value
   },
   get scrollable() {
     return this.scrollHeight > this.clientHeight
@@ -562,8 +577,8 @@ define(Element.prototype, {
     return n.scrollHeight - n.scrollTop <= n.rect.height
   },
   get computedStyle() {
-    const comp = getComputedStyle(this)
-    return arr(comp).reduce((s, n) => assign(s, { [n]: comp[n] }), {})
+    return arr(this.getComputedStyleMap())
+      .reduce((s, n) => assign(s, { [n[0]]: n[1][0].toString() }), {})
   },
   *chain() {
     let node = this
