@@ -1,5 +1,5 @@
 
-const MONKEY_VERSION = 37
+const MONKEY_VERSION = 38
 console.log(`Monkey version: ${MONKEY_VERSION}`)
 
 //====== Shorthands ======
@@ -506,8 +506,7 @@ function selector(sel = '') {
   return output
 }
 function elem(sel, ...children) {
-  const { tag, id, classes, attrs } = selector(sel ?? '')
-  console.log('tag', tag, 'id', id, 'classes', classes, 'attrs', attrs)
+  const { tag, id, classes, attrs } = selector(sel)
   const el = document.createElement(tag)
   if (id) {
     el.id = id
