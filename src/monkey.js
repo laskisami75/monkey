@@ -1,5 +1,5 @@
 
-const MONKEY_VERSION = 36
+const MONKEY_VERSION = 37
 console.log(`Monkey version: ${MONKEY_VERSION}`)
 
 //====== Shorthands ======
@@ -481,7 +481,7 @@ function selector(sel = '') {
     attrs: [],
   }
   /*function attr(s) {
-    const [name, value] = [...s.slice(1, -1).split('='), '']
+    const [name, value] = [...s.split('='), '']
     return { name, value: value.trim('"').trim('\'') }
   }*/
   function attr(s) {
@@ -499,7 +499,7 @@ function selector(sel = '') {
     else if (part.startsWith('.'))
       output.classes.push(part.slice(1))
     else if (part.startsWith('['))
-      output.attrs.push(attr(part))
+      output.attrs.push(attr(part.slice(1, -1)))
     else
       output.tag = part
   }
