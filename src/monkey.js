@@ -1,5 +1,5 @@
 
-const MONKEY_VERSION = 35
+const MONKEY_VERSION = 36
 console.log(`Monkey version: ${MONKEY_VERSION}`)
 
 //====== Shorthands ======
@@ -66,6 +66,12 @@ const allTags = [
   'thead',      'time',       'title',     'tr',      
   'track',      'tt',         'u',         'ul',      
   'var',        'video',      'wbr',       'xmp',     
+]
+const voidTags = [
+  'area',       'base',       'br',        'col',
+  'embed',      'hr',         'img',       'input',
+  'link',       'meta',       'param',     'source',
+  'track',      'wbr',
 ]
 
 //====== Type functions ======
@@ -474,9 +480,18 @@ function selector(sel = '') {
     classes: [],
     attrs: [],
   }
-  function attr(s) {
+  /*function attr(s) {
     const [name, value] = [...s.slice(1, -1).split('='), '']
     return { name, value: value.trim('"').trim('\'') }
+  }*/
+  function attr(s) {
+    const i = s.indexOf('=')
+    if (i == -1)
+      return { name: s, value: '' }
+    return {
+      name: s.slice(0, i),
+      value: s.slice(i + 1).trim('"').trim('\'')
+    }
   }
   for (const part of parts) {
     if (part.startsWith('#'))
@@ -492,6 +507,7 @@ function selector(sel = '') {
 }
 function elem(sel, ...children) {
   const { tag, id, classes, attrs } = selector(sel ?? '')
+  console.log('tag', tag, 'id', id, 'classes', classes, 'attrs', attrs)
   const el = document.createElement(tag)
   if (id) {
     el.id = id
