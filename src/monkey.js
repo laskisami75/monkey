@@ -1,5 +1,5 @@
 
-const MONKEY_VERSION = 38
+const MONKEY_VERSION = 39
 console.log(`Monkey version: ${MONKEY_VERSION}`)
 
 //====== Shorthands ======
@@ -16,6 +16,7 @@ const get = Reflect.get
 const set = Reflect.set
 const del = Reflect.deleteProperty
 const keys = Reflect.ownKeys
+const call = Reflect.apply
 const values = Object.values
 const assign = Object.assign
 const create = Object.create
@@ -89,9 +90,7 @@ function type(s) {
   return typeof s
 }
 function whatis(s) {
-  if (isctor(s))
-    return `${s.name}`
-  return Object.prototype.toString.call(s).slice(8, -1)
+  return call(Object.prototype.toString, s, []).slice(8, -1)
 }
 function is(s, t) {
   return s instanceof t
@@ -260,16 +259,12 @@ function html(text) {
 function xml(text) {
   return new DOMParser().parseFromString(text, 'text/xml')
 }
+function serialize(node) {
+  return new XMLSerializer().serializeToString(node)
+}
 function saveAs(blob, name) {
-  const a = elem('a[style="display: none"]')
   const url = URL.createObjectURL(blob)
-  a.href = url
-  a.download = name
-  
-  body.append(a)
-  a.click()
-  
-  a.remove()
+  GM_download(url, name)
   URL.revokeObjectURL(url)
 }
 function stopExecute(allowed = [location.origin]) {
@@ -465,6 +460,25 @@ define(Storage.prototype, {
   },
 })
 
+//====== Location ======
+define(Location.prototype, {
+  get params() {
+    const location = this
+    const params = new URLSearchParams(this.search)
+    
+    return define(obj(params.entries()), {
+      set(key, value) {
+        this[key] = value
+        params.set(key, value)
+        location.search = params.toString()
+      },
+      get(key) {
+        return params.get(key)
+      },
+    })
+  }
+})
+
 //====== DOM functions ======
 function $(sel, root) {
   return (root ?? document).querySelector(sel)
@@ -559,15 +573,6 @@ define(Window.prototype, {
   },
 })
 define(Element.prototype, {
-  get parent() {
-    return this.parentElement
-  },
-  get next() {
-    return this.nextElementSibling
-  },
-  get prev() {
-    return this.previousElementSibling
-  },
   get rect() {
     return this.getBoundingClientRect()
   },
@@ -575,12 +580,6 @@ define(Element.prototype, {
     if (this.innerHTML == '')
       return this.outerHTML
     return this.outerHTML.replace(this.innerHTML, '…')
-  },
-  get text() {
-    return this.textContent
-  },
-  set text(value) {
-    this.textContent = value
   },
   get scrollable() {
     return this.scrollHeight > this.clientHeight
@@ -602,11 +601,6 @@ define(Element.prototype, {
       node = node.parentElement
     }
   },
-  swap(other) {
-    const temp = this.next
-    this.parent.insertBefore(this, other.next)
-    this.parent.insertBefore(other, temp)
-  },
   closest(sel) {
     let fn = isfn(sel) ? sel : s => s.matches(sel)
     
@@ -623,8 +617,32 @@ define(Element.prototype, {
   },
 })
 define(Node.prototype, {
-  serialize() {
-    return new XMLSerializer().serializeToString(this)
+  get parent() {
+    return this.parentElement
+  },
+  get next() {
+    return this.nextElementSibling
+  },
+  get prev() {
+    return this.previousElementSibling
+  },
+  get text() {
+    return this.textContent
+  },
+  set text(value) {
+    this.textContent = value
+  },
+  swap(node) {
+    const temp = this.nextSibling
+    this.parent.insertBefore(this, node.nextSibling)
+    this.parent.insertBefore(node, temp)
+  },
+  remove() {
+    this.parent.removeChild(this)
+  },
+  replaceWith(node) {
+    this.parent.replaceChild(node, this)
+    return node
   },
 })
 define(EventTarget.prototype, {
