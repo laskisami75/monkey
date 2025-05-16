@@ -1,5 +1,5 @@
 
-const MONKEY_VERSION = 39
+const MONKEY_VERSION = 40
 console.log(`Monkey version: ${MONKEY_VERSION}`)
 
 //====== Shorthands ======
@@ -588,7 +588,7 @@ define(Element.prototype, {
     return this.scrollTop / (this.scrollHeight - innerHeight)
   },
   get scrolledToEnd() {
-    return n.scrollHeight - n.scrollTop <= n.rect.height
+    return this.scrollHeight - this.scrollTop <= this.rect.height
   },
   get computedStyle() {
     return arr(this.getComputedStyleMap())
