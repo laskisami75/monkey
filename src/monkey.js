@@ -1,5 +1,5 @@
 
-const MONKEY_VERSION = 40
+const MONKEY_VERSION = 41
 console.log(`Monkey version: ${MONKEY_VERSION}`)
 
 //====== Shorthands ======
@@ -216,8 +216,19 @@ function dialog() {
 }
 
 //====== Utility functions ======
+const failedDefines = []
 function define(type, defs) {
-  return defProps(type, getDescs(defs))
+  //return defProps(type, getDescs(defs))
+  const descs = getDescs(defs)
+  for (const key in descs) {
+    try {
+      defProp(type, key, descs[key])
+    }
+    catch (e) {
+      failedDefines.push(assign({ key }, descs[key]))
+    }
+  }
+  return type
 }
 function char(i) {
   return String.fromCharCode(i)
@@ -655,3 +666,8 @@ define(EventTarget.prototype, {
     })())
   },
 })
+
+function initialize() {
+  console.error(`Failed ${failedDefines.length} defines`, failedDefines)
+}
+initialize()
