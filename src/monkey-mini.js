@@ -2,7 +2,7 @@
 /*=============== helpers.js ===============*/
 function arr(target, fn) {
   const array = Array.from(target, fn)
-  if (array.length > 0 && !array.every(s => is(s, Promise)))
+  if (!array.some(s => is(s, Promise)))
     return array
   return Array.fromAsync(target, fn)
 }
