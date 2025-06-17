@@ -1,6 +1,6 @@
 
-extend(globalThis, {
-  VERSION: 4,
+define(globalThis, {
+  VERSION: 5,
 })
 
 /*=============== helpers.js ===============*/
@@ -54,7 +54,6 @@ function desc(target, key) {
 function define(target, defines) {
   if (list(Object.getOwnPropertyDescriptors(defines)).every(s => isdesc(s.value)))
     return Object.defineProperties(target, defines)
-  console.log('define', target, defines)
   return Object.defineProperties(target, Object.getOwnPropertyDescriptors(defines))
 }
 function extend(target, defines) {
