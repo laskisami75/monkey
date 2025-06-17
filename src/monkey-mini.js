@@ -1,4 +1,8 @@
 
+extend(globalThis, {
+  VERSION: 3,
+})
+
 /*=============== helpers.js ===============*/
 function arr(target, fn) {
   const array = Array.from(target, fn)
@@ -174,6 +178,38 @@ function elem(sel, ...children) {
   el.append(...children.filter(s => s))
   return el
 }
+function $$style(text) {
+  const wanted = obj(text.split(';')
+    .map(s => s.trim())
+    .filter(s => s)
+    .map(s => s.split(':').map(s => s.trim())))
+  return $$('*')
+    .filter(el => {
+      const comp = el.compStyle
+      return keys(wanted).every(s => comp[s] == wanted[s])
+    })
+}
+function $await(sel, root) {
+  return new Promise(resolve => {
+    const obs = new MutationObserver((muts, obs) => {
+      for (const m of muts) {
+        for (const n of m.addedNodes) {
+          const el = $(sel, n)
+          if (el) {
+            obs.disconnect()
+            resolve(el)
+            return
+          }
+        }
+      }
+    })
+    const opt = {
+      childList: true,
+      subtree: true,
+    }
+    obs.observe(root ?? body, opt)
+  })
+}
 
 /*=============== tools.js ===============*/
 function store(id) {
@@ -348,17 +384,28 @@ extend(Array.prototype, {
     }
     return output
   },
+  indexed() {
+    return this.map((s, i) => [s, i])
+  },
   linked() {
     return this.map((s, i) => assign(s, {
       prev: i == 0 ? null : this[i - 1],
       next: i == this.length - 1 ? null : this[i + 1],
     }))
   },
+  filter(fn = s => s) {
+    return this._filter(fn)
+  },
   get last() {
     return this[this.length-1]
   },
   set last(value) {
     this[this.length-1] = value
+  },
+})
+extend(Iterator.prototype, {
+  filter(fn = s => s) {
+    return this._filter(fn)
   },
 })
 extend(Window.prototype, {
@@ -487,27 +534,32 @@ function imp(strings, ...rest) {
 /*=============== other.js ===============*/
 function gallery(sel, root) {
   const images = $$(sel, root ?? document)
-  images.forEach(el => {
+  images.forEach((el, i) => {
     el.onclick = e => {
       if (images[0].rect.y > 0)
         images[0].scrollIntoView({ block: 'end' })
       else if (e.y < innerHeight * .7)
-        images.toReversed().find(s => s.rect.y < 0).scrollIntoView({ block: 'end' })
+        images[i-1]?.scrollIntoView({ block: 'end' })
       else
-        images.find(s => s.rect.y > 0).scrollIntoView({ block: 'end' })
+        images[i+1]?.scrollIntoView({ block: 'end' })
     }
   })
 }
-function $$style(text) {
-  const wanted = obj(text.split(';')
-    .map(s => s.trim())
-    .filter(s => s)
-    .map(s => s.split(':').map(s => s.trim())))
-  return $$('*')
-    .filter(el => {
-      const comp = el.compStyle
-      return keys(wanted).every(s => comp[s] == wanted[s])
-    })
+function progress() {
+  function scrollPercent() {
+    const el = document.scrollingElement
+    return el.scrollTop / (el.scrollHeight - el.clientHeight)
+  }
+  
+  const bar = elem('#scroll-fill[style="--fill: 0%;position: fixed;top; 0;right: 0;z-index: 90000;width: 12px;height: 100%;background: linear-gradient(180deg, oklch(0.3 0.2 212 / .6) var(--fill), transparent var(--fill));"]')
+  body.append(bar)
+  
+  bar.style.setProperty('--fill', `${scrollPercent() * 100}%`)
+  document.addEventListener('scroll', e => {
+    bar.style.setProperty('--fill', `${scrollPercent() * 100}%`)
+  })
+  
+  return bar
 }
 
 /*=============== extend-more.js ===============*/
@@ -549,8 +601,10 @@ extend(globalThis, {
   $,
   $$,
   elem,
+  $$style,
+  $await,
   store,
   imp,
   gallery,
-  $$style,
+  progress,
 })
