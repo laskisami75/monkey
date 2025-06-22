@@ -1,6 +1,6 @@
 
 define(globalThis, {
-  VERSION: 7,
+  VERSION: 8,
 })
 
 /*=============== helpers.js ===============*/
@@ -554,7 +554,7 @@ function progress() {
   const css = `
   #scroll-fill {
     position: fixed;
-    top; 0;
+    top: 0;
     right: 0;
     z-index: 90000;
     width: 12px;
