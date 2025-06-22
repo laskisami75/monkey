@@ -1,6 +1,6 @@
 
 define(globalThis, {
-  VERSION: 6,
+  VERSION: 7,
 })
 
 /*=============== helpers.js ===============*/
@@ -551,7 +551,21 @@ function progress() {
     return el.scrollTop / (el.scrollHeight - el.clientHeight)
   }
   
-  const bar = elem('#scroll-fill[style="--fill: 0%;position: fixed;top; 0;right: 0;z-index: 90000;width: 12px;height: 100%;transition: background .15s linear;background: linear-gradient(180deg, oklch(0.3 0.2 212 / .6) var(--fill), transparent var(--fill));"]')
+  const css = `
+  #scroll-fill {
+    position: fixed;
+    top; 0;
+    right: 0;
+    z-index: 90000;
+    width: 12px;
+    height: 100%;
+    transition: background .15s linear;
+    background: linear-gradient(180deg, oklch(0.3 0.2 212 / .6) var(--fill), transparent var(--fill));
+  }
+  `
+  head.append(elem('style', css))
+  
+  const bar = elem('#scroll-fill[style="--fill: 0%;"]')
   body.append(bar)
   
   bar.style.setProperty('--fill', `${scrollPercent() * 100}%`)
