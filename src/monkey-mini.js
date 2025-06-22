@@ -1,6 +1,6 @@
 
 define(globalThis, {
-  VERSION: 10,
+  VERSION: 11,
 })
 function info() {
   console.log(`monkey-mini.js (version: ${VERSION})`)
@@ -514,6 +514,17 @@ extend(EventTarget.prototype, {
     return unlisten
   },
 })
+extend(Image, {
+  reload() {
+    if (this.complete && this.naturalWidth == 0) {
+      const image = this
+      return new Promise(resolve => {
+        image.onload = e => resolve(image)
+        image.src = `${image.src.replaceAll(/\?.+$/, '')}?${Date.now()}`
+      })
+    }
+  },
+})
 
 /*=============== monkey.js ===============*/
 function GM_fetch(url, opt = {}) {
@@ -584,6 +595,19 @@ function progress() {
   return bar
 }
 
+/*=============== font.js ===============*/
+// Common inputs:
+//   'Noto Sans SC'
+//   'Inter'
+function font(name) {
+  const css = `@import url('https://fonts.googleapis.com/css2?family=${s.replaceAll(' ', '+')}:wght@100..900&display=swap');
+  body {
+    font-family: "${name}", sans-serif;
+  }
+  `
+  head.append(elem('style', css))
+}
+
 /*=============== extend-more.js ===============*/
 extend(globalThis, {
   info,
@@ -630,4 +654,5 @@ extend(globalThis, {
   imp,
   gallery,
   progress,
+  font,
 })
