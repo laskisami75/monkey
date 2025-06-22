@@ -1,6 +1,6 @@
 
 define(globalThis, {
-  VERSION: 8,
+  VERSION: 9,
 })
 
 /*=============== helpers.js ===============*/
@@ -552,6 +552,11 @@ function progress() {
   }
   
   const css = `
+  @property --fill {
+    syntax: "<percentage>";
+    inherits: false;
+    initial-value: 0%;
+  }
   #scroll-fill {
     position: fixed;
     top: 0;
@@ -559,13 +564,13 @@ function progress() {
     z-index: 90000;
     width: 12px;
     height: 100%;
-    transition: background .15s linear;
+    transition: background .15s linear, --fill .15s linear;
     background: linear-gradient(180deg, oklch(0.3 0.2 212 / .6) var(--fill), transparent var(--fill));
   }
   `
   head.append(elem('style', css))
   
-  const bar = elem('#scroll-fill[style="--fill: 0%;"]')
+  const bar = elem('#scroll-fill')
   body.append(bar)
   
   bar.style.setProperty('--fill', `${scrollPercent() * 100}%`)
