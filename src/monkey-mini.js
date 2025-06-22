@@ -1,6 +1,6 @@
 
 define(globalThis, {
-  VERSION: 11,
+  VERSION: 12,
 })
 function info() {
   console.log(`monkey-mini.js (version: ${VERSION})`)
@@ -600,7 +600,7 @@ function progress() {
 //   'Noto Sans SC'
 //   'Inter'
 function font(name) {
-  const css = `@import url('https://fonts.googleapis.com/css2?family=${s.replaceAll(' ', '+')}:wght@100..900&display=swap');
+  const css = `@import url('https://fonts.googleapis.com/css2?family=${name.replaceAll(' ', '+')}:wght@100..900&display=swap');
   body {
     font-family: "${name}", sans-serif;
   }
