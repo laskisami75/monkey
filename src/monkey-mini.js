@@ -1,7 +1,10 @@
 
 define(globalThis, {
-  VERSION: 9,
+  VERSION: 10,
 })
+function info() {
+  console.log(`monkey-mini.js (version: ${VERSION})`)
+}
 
 /*=============== helpers.js ===============*/
 function arr(target, fn) {
@@ -564,7 +567,7 @@ function progress() {
     z-index: 90000;
     width: 12px;
     height: 100%;
-    transition: background .15s linear, --fill .15s linear;
+    transition: --fill .1s ease-out;
     background: linear-gradient(180deg, oklch(0.3 0.2 212 / .6) var(--fill), transparent var(--fill));
   }
   `
@@ -583,6 +586,7 @@ function progress() {
 
 /*=============== extend-more.js ===============*/
 extend(globalThis, {
+  info,
   arr,
   obj,
   has,
