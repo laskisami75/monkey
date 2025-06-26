@@ -1,6 +1,6 @@
 
 define(globalThis, {
-  VERSION: 13,
+  VERSION: 14,
 })
 function info() {
   console.log(`monkey-mini.js (version: ${VERSION})`)
@@ -13,7 +13,7 @@ function arr(target, fn) {
     return array
   return Array.fromAsync(target, fn)
 }
-export function obj(entries, value) {
+function obj(entries, value) {
   if (value === undefined)
     return Object.fromEntries(entries)
   return { [entries]: value }
@@ -216,7 +216,7 @@ function $$style(...cssSets) {
       return wanted.some(s => keys(s).every(k => comp[k] == s[k]))
     })
 }
-export function $a(sel) {
+function $a(sel) {
   observer ??= singleObserver()
   return new Promise(resolve => {
     observer.add(sel, el => {
@@ -225,7 +225,7 @@ export function $a(sel) {
     })
   })
 }
-export async function* $$a(sel) {
+async function* $$a(sel) {
   while (true)
     yield await $a(sel)
 }
