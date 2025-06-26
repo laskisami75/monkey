@@ -1,6 +1,6 @@
 
 define(globalThis, {
-  VERSION: 12,
+  VERSION: 13,
 })
 function info() {
   console.log(`monkey-mini.js (version: ${VERSION})`)
@@ -13,8 +13,10 @@ function arr(target, fn) {
     return array
   return Array.fromAsync(target, fn)
 }
-function obj(entries) {
-  return Object.fromEntries(entries)
+export function obj(entries, value) {
+  if (value === undefined)
+    return Object.fromEntries(entries)
+  return { [entries]: value }
 }
 function has(target, ...props) {
   return !isprim(target) && props.every(s => s in target)
@@ -105,9 +107,9 @@ function type(s) {
     return 'null'
   if (s === undefined)
     return 'undefined'
-  if (Array.isArray(s))
+  if (isarr(s))
     return 'array'
-  if (has(s, Symbol.iterator))
+  if (isiter(s))
     return 'iterator'
   return typeof s
 }
@@ -163,6 +165,28 @@ function selector(sel = '') {
   }
   return output
 }
+function singleObserver() {
+  const eventMap = new Map()
+  const observer = new MutationObserver(muts => {
+    for (const [sel, value] of eventMap) {
+      for (const el of $$(sel, value.root))
+        value.fn(el)
+    }
+  })
+  return {
+    add(sel, fn, root) {
+      root ??= document
+      eventMap.set(sel, { fn, root })
+      observer.observe(root, { childList: true, subtree: true })
+    },
+    remove(sel) {
+      eventMap.delete(sel)
+      if (eventMap.size == 0)
+        observer.disconnect()
+    },
+  }
+}
+let observer = null
 function $(sel, root) {
   return (root ?? document).querySelector(sel)
 }
@@ -181,37 +205,29 @@ function elem(sel, ...children) {
   el.append(...children.filter(s => s))
   return el
 }
-function $$style(text) {
-  const wanted = obj(text.split(';')
+function $$style(...cssSets) {
+  const wanted = cssSets.map(s => obj(s.split(';')
     .map(s => s.trim())
     .filter(s => s)
-    .map(s => s.split(':').map(s => s.trim())))
+    .map(s => s.split(':').map(s => s.trim()))))
   return $$('*')
     .filter(el => {
       const comp = el.compStyle
-      return keys(wanted).every(s => comp[s] == wanted[s])
+      return wanted.some(s => keys(s).every(k => comp[k] == s[k]))
     })
 }
-function $await(sel, root) {
+export function $a(sel) {
+  observer ??= singleObserver()
   return new Promise(resolve => {
-    const obs = new MutationObserver((muts, obs) => {
-      for (const m of muts) {
-        for (const n of m.addedNodes) {
-          const el = $(sel, n)
-          if (el) {
-            obs.disconnect()
-            resolve(el)
-            return
-          }
-        }
-      }
+    observer.add(sel, el => {
+      observer.remove(sel)
+      resolve(el)
     })
-    const opt = {
-      childList: true,
-      subtree: true,
-    }
-    obs.observe(root ?? body, opt)
   })
+}
+export async function* $$a(sel) {
+  while (true)
+    yield await $a(sel)
 }
 
 /*=============== tools.js ===============*/
@@ -445,9 +461,6 @@ extend(Element.prototype, {
   get next() {
     return this.nextElementSibling
   },
-  get parent() {
-    return this.parentElement
-  },
   append(...args) {
     args = args.filter(s => s)
     this._append(...args)
@@ -479,7 +492,7 @@ extend(Element.prototype, {
     })
   },
   set(fn) {
-    fn(this)
+    call(fn, this, this)
     return this
   },
 })
@@ -490,8 +503,12 @@ extend(Node.prototype, {
   set text(value) {
     this.textContent = value
   },
+  get parent() {
+    return this.parentElement
+  },
 })
 extend(EventTarget.prototype, {
+  listeners: new Map(),
   dispatch(type, props = {}) {
     this.dispatchEvent(new (class extends Event {
       constructor() {
@@ -501,17 +518,23 @@ extend(EventTarget.prototype, {
     })())
   },
   listen(type, handler, options) {
-    const target = this
-    function unlisten() {
-      return target.removeEventListener(type, delegate, options)
-    }
-    function delegate(e) {
-      return handler(define(e, {
-        unlisten,
-      }))
-    }
-    this.addEventListener(type, delegate, options)
+    const unlisten = () => this.removeEventListener(type, handler, options)
+    this.listeners.set(type, [
+      ...(this.listeners.get(type) ?? []),
+      unlisten,
+    ])
+    this.addEventListener(type, handler, options)
     return unlisten
+  },
+  unlisten(type) {
+    if (type === undefined) {
+      for (const [type, array] of this.listeners)
+        this.unlisten(type)
+    }
+    else {
+      for (const fn of this.listeners.get(type))
+        fn()
+    }
   },
 })
 extend(Image, {
@@ -527,7 +550,7 @@ extend(Image, {
 })
 
 /*=============== monkey.js ===============*/
-function GM_fetch(url, opt = {}) {
+function GM_fetch(url, opt = { responseType: 'document' }) {
   return new Promise(resolve => {
     GM_xmlhttpRequest({
       ...opt,
@@ -649,7 +672,8 @@ extend(globalThis, {
   $$,
   elem,
   $$style,
-  $await,
+  $a,
+  $$a,
   store,
   imp,
   gallery,
