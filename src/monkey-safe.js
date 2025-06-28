@@ -315,3 +315,14 @@ function font(name) {
   `
   head.append(elem('style', css))
 }
+
+/*=============== node.js ===============*/
+function* textnodes() {
+  const it = document.createNodeIterator(document.body, NodeFilter.SHOW_TEXT)
+  let node = it.nextNode()
+  while (node) {
+    if (/\S/.test(node.textContent))
+      yield node
+    node = it.nextNode()
+  }
+}
