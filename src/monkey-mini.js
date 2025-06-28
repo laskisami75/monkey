@@ -1,6 +1,6 @@
 
 define(globalThis, {
-  VERSION: 14,
+  VERSION: 15,
 })
 function info() {
   console.log(`monkey-mini.js (version: ${VERSION})`)
@@ -166,18 +166,41 @@ function selector(sel = '') {
   return output
 }
 function singleObserver() {
+  const stackMap = new Map()
   const eventMap = new Map()
   const observer = new MutationObserver(muts => {
     for (const [sel, value] of eventMap) {
-      for (const el of $$(sel, value.root))
-        value.fn(el)
+      const stack = $$(sel, value.root)
+      if (!value.single) {
+        if (stack.length > 0)
+          value.fn(stack)
+      }
+      else {
+        if (stack.length > 0) {
+          stackMap.set(sel, stack.slice(1))
+          value.fn(stack[0])
+        }
+      }
     }
   })
   return {
-    add(sel, fn, root) {
-      root ??= document
-      eventMap.set(sel, { fn, root })
-      observer.observe(root, { childList: true, subtree: true })
+    add(sel, single, fn, root = body) {
+      if (single) {
+        if (!stackMap.has(sel) || stackMap.get(sel).length == 0) {
+          stackMap.set(sel, [])
+          eventMap.set(sel, { fn, single, root })
+          observer.observe(root, { childList: true, subtree: true })
+        }
+        else {
+          const stack = stackMap.get(sel)
+          stackMap.set(sel, stack.slice(1))
+          fn(stack[0])
+        }
+      }
+      else {
+        eventMap.set(sel, { fn, single, root })
+        observer.observe(root, { childList: true, subtree: true })
+      }
     },
     remove(sel) {
       eventMap.delete(sel)
@@ -216,28 +239,47 @@ function $$style(...cssSets) {
       return wanted.some(s => keys(s).every(k => comp[k] == s[k]))
     })
 }
-function $a(sel) {
+function $a(sel, root) {
   observer ??= singleObserver()
   return new Promise(resolve => {
-    observer.add(sel, el => {
+    observer.add(sel, true, el => {
       observer.remove(sel)
       resolve(el)
-    })
+    }, root)
   })
 }
-async function* $$a(sel) {
+async function* $$a(sel, root) {
   while (true)
-    yield await $a(sel)
+    yield* await $aa(sel, root)
+}
+async function $aa(sel, root) {
+  observer ??= singleObserver()
+  return new Promise(resolve => {
+    observer.add(sel, false, el => {
+      resolve(el)
+    }, root)
+  })
+}
+async function* $$aa(sel, root) {
+  while (true)
+    yield await $aa(sel, root)
 }
 
 /*=============== tools.js ===============*/
-function store(id) {
+function openStore(id) {
   return new Proxy({ id }, {
     get(target, key) {
       return JSON.parse(str(localStorage.getItem(`@${id}/${key}`)))
     },
     set(target, key, value) {
       localStorage.setItem(`@${id}/${key}`, JSON.stringify(value))
+      return true
+    },
+    has(target, key) {
+      return localStorage.getItem(`@${id}/${key}`) != null
+    },
+    deleteProperty(target, key) {
+      localStorage.removeItem(`@${id}/${key}`)
       return true
     },
   })
@@ -631,6 +673,17 @@ function font(name) {
   head.append(elem('style', css))
 }
 
+/*=============== node.js ===============*/
+function* textnodes() {
+  const it = document.createNodeIterator(document.body, NodeFilter.SHOW_TEXT)
+  let node = it.nextNode()
+  while (node) {
+    if (/\S/.test(node.textContent))
+      yield node
+    node = it.nextNode()
+  }
+}
+
 /*=============== extend-more.js ===============*/
 extend(globalThis, {
   info,
@@ -674,9 +727,12 @@ extend(globalThis, {
   $$style,
   $a,
   $$a,
-  store,
+  $aa,
+  $$aa,
+  openStore,
   imp,
   gallery,
   progress,
   font,
+  textnodes,
 })
