@@ -1,6 +1,6 @@
 
 define(globalThis, {
-  VERSION: 17,
+  VERSION: 18,
 })
 function info() {
   console.log(`monkey-mini.js (version: ${VERSION})`)
@@ -665,7 +665,7 @@ function stopExecute(sel) {
   const obs = new MutationObserver(muts => {
     for (const m of muts) {
       for (const n of m.addedNodes) {
-        if (n?.matches(sel)) {
+        if (n.matches?.(sel)) {
           n.text = ''
           n.remove()
         }
