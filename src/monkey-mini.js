@@ -1,6 +1,6 @@
 
 define(globalThis, {
-  VERSION: 15,
+  VERSION: 16,
 })
 function info() {
   console.log(`monkey-mini.js (version: ${VERSION})`)
@@ -659,6 +659,21 @@ function progress() {
   
   return bar
 }
+function stopExecute(sel) {
+  sel ??= `script:not([src^="${location.origin}"])`
+  
+  const obs = new MutationObserver(muts => {
+    for (const m of muts) {
+      for (const n of m.addedNodes) {
+        if (n.matches(sel)) {
+          n.text = ''
+          n.remove()
+        }
+      }
+    }
+  })
+  obs.observe(document, { childList: true, subtree: true })
+}
 
 /*=============== font.js ===============*/
 // Common inputs:
@@ -733,6 +748,7 @@ extend(globalThis, {
   imp,
   gallery,
   progress,
+  stopExecute,
   font,
   textnodes,
 })

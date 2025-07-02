@@ -1,0 +1,67 @@
+html, body {
+  height: 100%;
+}
+body {
+  overscroll-behavior-y: contain;
+}
+.CodeMirror,
+.CodeMirror * {
+  font-size: 10px !important;
+}
+::-webkit-scrollbar {
+  display: none !important;
+}
+
+.edit-nav-item {
+  padding: 4px 8px;
+}
+.edit-header > .mr-1 {
+  margin: 0;
+}
+.edit-header .edit-hint,
+.edit-header .edit-name,
+.edit-header > .mr-1 > button:nth-child(2),
+.edit-nav-item:nth-child(4) {
+  display: none;
+}
+
+.submenu-commands {
+  font-size: 1rem;
+}
+.submenu-commands > .menu-item {
+  min-height: 1.75rem;
+}
+.submenu-commands > .menu-item:nth-child(2n) {
+  background: #0000001a;
+}
+.submenu-commands > .menu-item:nth-child(2n+1) {
+  background: #ffffff1a;
+}
+.submenu-commands > .menu-item .icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: 0 0 1.25rem;
+}
+
+.edit-header {
+  /*position: static;/**/
+}
+
+.tab textarea {
+  white-space: pre;
+  overflow-x: auto;
+  font-size: 10px;
+}
+
+.tab {
+  padding-inline: 1rem;
+}
+.tab > details > summary {
+  margin-inline: 0;
+}
+
+
+
+
+
+

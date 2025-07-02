@@ -1,0 +1,19 @@
+{
+  "autocompleteOnTyping": 100,
+  "dragDrop": false,
+  "fixedGutter": false,
+  "foldGutter": false,
+  "gutters": [],
+  "highlightSelectionMatches": false,
+  "indentUnit": 2,
+  "indentWithTabs": false,
+  "inputStyle": "contenteditable",
+  "killTrailingSpaceOnSave": true,
+  "lineNumbers": false,
+  "lineWrapping": false,
+  "maxDisplayLength": 200000,
+  "maxHighlightLength": 20000,
+  "showTrailingSpace": false,
+  "tabSize": 2,
+  "undoDepth": 0
+}
