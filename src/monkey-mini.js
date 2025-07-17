@@ -1,100 +1,103 @@
 
 define(globalThis, {
-  VERSION: 27,
+  VERSION: 28,
 })
 function info() {
   console.log(`monkey-mini.js (version: ${VERSION})`)
 }
 function changelog() {
-  const content = new showdown.Converter().makeHtml('# hello, markdown!')
   const log = `
-  ## Version 27
-  Changed 'changelog()' to using showdownjs that''s loaded inside the userscript
+## Version 28
+Updated \`\`changelog()\`\` to show the actual changelog instead of debug dummy content
 
-  ## Version 26
-  Inlined showdownjs cdn script in 'changelog()'
+## Version 27
+Changed \`\`changelog()\`\` to using showdownjs that's loaded inside the userscript
 
-  ## Version 25
-  Changed 'changelog()' to use showdownjs library
+## Version 26
+Inlined showdownjs cdn script in \`\`changelog()\`\`
 
-  ## Version 24
-  Attempted fix on 'changelog()'
+## Version 25
+Changed \`\`changelog()\`\` to use showdownjs library
 
-  ## Version 23
-  Debug 'domInsert(fn, args)' for invalid 's.dispatch(''mounted'')' calls (attempt 2)
+## Version 24
+Attempted fix on \`\`changelog()\`\`
 
-  ## Version 22
-  Debug 'domInsert(fn, args)' for invalid 's.dispatch(''mounted'')' calls
+## Version 23
+Debug \`\`domInsert(fn, args)\`\` for invalid \`\`s.dispatch('mounted')\`\` calls (attempt 2)
 
-  ## Version 21
-  Fixed 'frag\`\`' and 'html\`\`' tagged templates from using undeclared variables
-  Updated 'changelog()' to now correctly handle ul-li chain depths
+## Version 22
+Debug \`\`domInsert(fn, args)\`\` for invalid \`\`s.dispatch('mounted')\`\` calls
 
-  ## Version 20
-  Fixed 'loadPages(selTarget, selImages, selPagination)' setting gallery navigation correctly
-  Fixed 'selector(sel)' support for empty attribute strings
-  Updated 'EventTarget.listen(type, handler, options)' to support unlistening from the passed event object
-  Added 'toast(title, text, duration)' method
-  - Shows a toast notification on the bottom of the page
-  - Only 'text' parameter is required, defaults to no title and a duration of 4 seconds
-  Added 'serialize(node)' method
-  - Serializes node to html string
-  Added 'html(text)' method
-  - Parses text to dom tree
-  Added 'html\`<html goes here>\`' template string
-  - Allows injecting raw html into 'append' or 'elem' pipeline
-  - This is the same function as 'html(text)', the way it''s called determines the behavior (whether it''s as a function call or as a template string)
-  Added 'isregex(s)' method
-  - Checks if 's' is a regular expression object
-  Added internal 'domInsert(fn, args)' function
-  Removed 'RegExp.escape(text)' extension
-  Updated extension methods 'append', 'prepend' and 'replaceChildren' of 'Element'
-  - These methods now call the internal 'domInsert(fn, args)' function
-  Added extension methods 'append', 'prepend' and 'replaceChildren' to both 'Document' and 'DocumentFragment'
-  - Works the same as above
-  Added 'innerHTML' property to 'DocumentFragment'
-  Added 'insertAdjacentHTML(where, text)' method to 'DocumentFragment'
-  - Works the same as 'Element.insertAdjacentHTML(where, text)'
-  Added 'isMounted' property to 'Node'
-  - Checks if this 'Node' is mounted to 'window.document' root
-  Added 'recurseChildren()' helper method to 'Node'
-  - This is used by the internal 'domInsert(fn, args)' function
-  - Helps with resolving what nodes need to have the 'mounted' event dispatched to them
-  - TODO Use event bubbling to achieve the same result with less nodes needing to be tracked?
-  Added 'leafNodes' property to 'Node'
-  - Returns all nodes without children under this node
-  - Currently unused in the codebase
-  - WARNING This method is untested
-  Added '*[Symbol.iterator]()' method to 'NodeIterator'
-  Added 'frag(...nodes)' method
-  Added 'frag\`<html goes here>\`' tagged template
-  Renamed 'isbint(s)' to 'isbigint(s)'
-  Updated 'elem(sel, ...children)' to support 'html\`\`' tagged templates
-  Updated 'is(s, t)' to handle more edge cases
-  Added 'isstrobj(s)', 'isnumobj(s)' and 'isboolobj(s)' methods
-  - Checks if 's' is the object version of either string, number or Boolean
-    - For example, 'assign(''hello'', { data: 123 })' is the object version of string ('isstr(s)' would return false)
+## Version 21
+Fixed \`\`frag\`\`\`\` and \`\`html\`\`\`\` tagged templates from using undeclared variables
+Updated \`\`changelog()\`\` to now correctly handle ul-li chain depths
 
-  ## Version 19
-  Added array extension methods 'min(fn)', 'max(fn)', 'minIndex(fn)' and 'maxIndex(fn)'
-  Added 'changelog()' method
-  - Opens a popup window with changelogs (what you are currently reading)
-  Added 'isMobile()' method
-  - Checks if platform is mobile or tablet (the check is based on user agent)
-  Updated 'gallery(sel, root)' to support desktop browsers
-  - Use left and right arrow keys to navigate
-  Added 'loadPages(selTarget, selImages, selPagination)' method
-  - Requires 'GM_xmlhttpRequest' permission
-  - Intelligently loads images from paginator pages into current page (assumed to be page 1)
-  - Avoids duplicates (both, duplicate images and duplicate pagination urls)
-  - Parameters:
-    - 'selTarget' is a selector for the element that contains all images
-    - 'selImages' is a selector that picks what elements will be included from loaded pages
-    - 'selPagination' is a selector that selects all paginator links that lead to new pages
-  
-  ## Version 18
-  Added 'Element.show()' shorthand for 'Element.scrollIntoView({ block: 'end' })'
+## Version 20
+Fixed \`\`loadPages(selTarget, selImages, selPagination)\`\` setting gallery navigation correctly
+Fixed \`\`selector(sel)\`\` support for empty attribute strings
+Updated \`\`EventTarget.listen(type, handler, options)\`\` to support unlistening from the passed event object
+Added \`\`toast(title, text, duration)\`\` method
+- Shows a toast notification on the bottom of the page
+- Only \`\`text\`\` parameter is required, defaults to no title and a duration of 4 seconds
+Added \`\`serialize(node)\`\` method
+- Serializes node to html string
+Added \`\`html(text)\`\` method
+- Parses text to dom tree
+Added \`\`html\`<html goes here>\`\`\` template string
+- Allows injecting raw html into \`\`append\`\` or \`\`elem\`\` pipeline
+- This is the same function as \`\`html(text)\`\`, the way it's called determines the behavior (whether it's as a function call or as a template string)
+Added \`\`isregex(s)\`\` method
+- Checks if \`\`s\`\` is a regular expression object
+Added internal \`\`domInsert(fn, args)\`\` function
+Removed \`\`RegExp.escape(text)\`\` extension
+Updated extension methods \`\`append\`\`, \`\`prepend\`\` and \`\`replaceChildren\`\` of \`\`Element\`\`
+- These methods now call the internal \`\`domInsert(fn, args)\`\` function
+Added extension methods \`\`append\`\`, \`\`prepend\`\` and \`\`replaceChildren\`\` to both \`\`Document\`\` and \`\`DocumentFragment\`\`
+- Works the same as above
+Added \`\`innerHTML\`\` property to \`\`DocumentFragment\`\`
+Added \`\`insertAdjacentHTML(where, text)\`\` method to \`\`DocumentFragment\`\`
+- Works the same as \`\`Element.insertAdjacentHTML(where, text)\`\`
+Added \`\`isMounted\`\` property to \`\`Node\`\`
+- Checks if this \`\`Node\`\` is mounted to \`\`window.document\`\` root
+Added \`\`recurseChildren()\`\` helper method to \`\`Node\`\`
+- This is used by the internal \`\`domInsert(fn, args)\`\` function
+- Helps with resolving what nodes need to have the \`\`mounted\`\` event dispatched to them
+- TODO Use event bubbling to achieve the same result with less nodes needing to be tracked?
+Added \`\`leafNodes\`\` property to \`\`Node\`\`
+- Returns all nodes without children under this node
+- Currently unused in the codebase
+- WARNING This method is untested
+Added \`\`*[Symbol.iterator]()\`\` method to \`\`NodeIterator\`\`
+Added \`\`frag(...nodes)\`\` method
+Added \`\`frag\`<html goes here>\`\`\` tagged template
+Renamed \`\`isbint(s)\`\` to \`\`isbigint(s)\`\`
+Updated \`\`elem(sel, ...children)\`\` to support \`\`html\`\`\`\` tagged templates
+Updated \`\`is(s, t)\`\` to handle more edge cases
+Added \`\`isstrobj(s)\`\`, \`\`isnumobj(s)\`\` and \`\`isboolobj(s)\`\` methods
+- Checks if \`\`s\`\` is the object version of either string, number or Boolean
+  - For example, \`\`assign('hello', { data: 123 })\`\` is the object version of string (\`\`isstr(s)\`\` would return false)
+
+## Version 19
+Added array extension methods \`\`min(fn)\`\`, \`\`max(fn)\`\`, \`\`minIndex(fn)\`\` and \`\`maxIndex(fn)\`\`
+Added \`\`changelog()\`\` method
+- Opens a popup window with changelogs (what you are currently reading)
+Added \`\`isMobile()\`\` method
+- Checks if platform is mobile or tablet (the check is based on user agent)
+Updated \`\`gallery(sel, root)\`\` to support desktop browsers
+- Use left and right arrow keys to navigate
+Added \`\`loadPages(selTarget, selImages, selPagination)\`\` method
+- Requires \`\`GM_xmlhttpRequest\`\` permission
+- Intelligently loads images from paginator pages into current page (assumed to be page 1)
+- Avoids duplicates (both, duplicate images and duplicate pagination urls)
+- Parameters:
+  - \`\`selTarget\`\` is a selector for the element that contains all images
+  - \`\`selImages\`\` is a selector that picks what elements will be included from loaded pages
+  - \`\`selPagination\`\` is a selector that selects all paginator links that lead to new pages
+
+## Version 18
+Added \`\`Element.show()\`\` shorthand for \`\`Element.scrollIntoView({ block: \`\`end\`\` })\`\`
   `
+  const content = new showdown.Converter().makeHtml(log.trim())
   const sub = window.open('', 'ChangelogWindow')
   sub.document.writeln(`<!DOCTYPE html>
 <html>
