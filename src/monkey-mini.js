@@ -1,9 +1,92 @@
 
 define(globalThis, {
-  VERSION: 18,
+  VERSION: 19,
 })
 function info() {
   console.log(`monkey-mini.js (version: ${VERSION})`)
+}
+function changelog() {
+  const subwindow = window.open('', 'ChangelogWindow')
+  subwindow.document.writeln(`<!DOCTYPE html>
+<html>
+<head>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:ital,wght@0,100..700;1,100..700&family=Roboto:ital,wght@0,100..900;1,100..900&display=swap');
+
+html, body {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+}
+body {
+  font-family: "Roboto", sans-serif;
+  font-size: 16px;
+}
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+}
+.container {
+  width: 66.667vw;
+  height: min-content;
+  padding: 1rem;
+  display: grid;
+  gap: .5rem;
+}
+li {
+  padding-block: .15rem;
+}
+li > ul {
+  padding-left: 1.5rem;
+}
+code {
+  font-family: "Roboto Mono", monospace;
+  font-weight: 600;
+  padding: .15rem .3rem;
+  border-radius: .25rem;
+  background: #eaeaf0;
+}
+</style>
+</head>
+<body>
+<div class="container">
+<h2>Version 19</h2>
+<ul>
+<li>Added array extension methods <code>min(fn)</code>, <code>max(fn)</code>, <code>minIndex(fn)</code> and <code>maxIndex(fn)</code>.</li>
+<li>Added <code>changelog()</code> method
+<ul><li>Opens a popup window with changelogs (what you are currently reading)</li></ul>
+</li>
+<li>Added <code>isMobile()</code> method
+<ul>
+<li>Checks if platform is mobile or tablet based on user agent</li>
+</ul>
+</li>
+<li>Updated <code>gallery(sel, root)</code> to support desktop browsers
+<ul>
+<li>Use left and right arrow keys to navigate</li>
+</ul>
+</li>
+<li>Added <code>loadPages(selTarget, selImages, selPagination)</code> method
+<ul>
+<li>Requires <code>GM_xmlhttpRequest</code> permission</li>
+<li>Intelligently loads images from paginator pages into current page (assumed to be page 1)</li>
+<li>Avoids duplicates</li>
+<li>Parameters:
+<ul>
+<li><code>selTarget</code> is a selector for the element that contains all images</li>
+<li><code>selImages</code> is a selector that picks what elements will be included from loaded pages</li>
+<li><code>selPagination</code> is a selector that selects all paginator links that lead to new pages</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</div>
+</body>
+</html>`)
 }
 
 /*=============== helpers.js ===============*/
@@ -457,6 +540,18 @@ extend(Array.prototype, {
   filter(fn = s => s) {
     return this._filter(fn)
   },
+  min(fn = s => s) {
+    return this.reduce((s, n) => fn(s) < fn(n) ? s : n)
+  },
+  max(fn = s => s) {
+    return this.reduce((s, n) => fn(s) > fn(n) ? s : n)
+  },
+  minIndex(fn = s => s) {
+    return this.reduce((s, n, i) => fn(this[s]) < fn(n) ? s : i, 0)
+  },
+  maxIndex(fn = s => s) {
+    return this.reduce((s, n, i) => fn(this[s]) > fn(n) ? s : i, 0)
+  },
   get last() {
     return this[this.length-1]
   },
@@ -502,6 +597,9 @@ extend(Element.prototype, {
   },
   get next() {
     return this.nextElementSibling
+  },
+  show() {
+    this.scrollIntoView({ block: 'end' })
   },
   append(...args) {
     args = args.filter(s => s)
@@ -611,18 +709,55 @@ function imp(strings, ...rest) {
 }
 
 /*=============== other.js ===============*/
+async function loadPages(selTarget, selImages, selPagination) {
+  const target = $(selTarget)
+  const urls = $$(selPagination).map(s => s.href).unique()
+  const count = $$(selImages).length
+  function isNewImage(el) {
+    return !$$(selImages).map(s => s.dataset?.src ?? s.src).includes(el.dataset?.src ?? el.src)
+  }
+  for (const url of urls) {
+    const dom = await GM_fetch(url)
+    const images = $$(selImages, dom).filter(isNewImage)
+    target.append(...images)
+  }
+  console.log(`${urls.length} pages, ${count} => ${$$(selImages).length} images`)
+  gallery()
+  progress()
+}
 function gallery(sel, root) {
   const images = $$(sel, root ?? document)
-  images.forEach((el, i) => {
-    el.onclick = e => {
-      if (images[0].rect.y > 0)
-        images[0].scrollIntoView({ block: 'end' })
-      else if (e.y < innerHeight * .7)
-        images[i-1]?.scrollIntoView({ block: 'end' })
-      else
-        images[i+1]?.scrollIntoView({ block: 'end' })
+  if (isMobile()) {
+    images.forEach((el, i) => {
+      el.onclick = e => {
+        if (images[0].rect.y > 0)
+          images[0].show()
+        else if (e.y < innerHeight * .7)
+          images[i-1]?.show()
+        else
+          images[i+1]?.show()
+      }
+    })
+  }
+  else {
+    const image = {
+      get current() {
+        return images.find(s => s.rect.y >= 0 && s.rect.y < 1)
+      },
+      get next() {
+        return images.find(s => s.rect.y >= 1)
+      },
+      get prev() {
+        return images.find(s => s.rect.y < 0)
+      },
     }
-  })
+    document.onkeydown = e => {
+      if (e.key == 'ArrowRight')
+        image.next?.show()
+      else if (e.key == 'ArrowLeft')
+        image.prev?.show()
+    }
+  }
 }
 function progress() {
   function scrollPercent() {
@@ -687,6 +822,9 @@ function font(name) {
   `
   head.append(elem('style', css))
 }
+function isMobile() {
+  return /\bAndroid\b|\biPhone\b|\biPad\b/.test(navigator.userAgent)
+}
 
 /*=============== node.js ===============*/
 function* textnodes() {
@@ -702,6 +840,7 @@ function* textnodes() {
 /*=============== extend-more.js ===============*/
 extend(globalThis, {
   info,
+  changelog,
   arr,
   obj,
   has,
@@ -746,9 +885,11 @@ extend(globalThis, {
   $$aa,
   openStore,
   imp,
+  loadPages,
   gallery,
   progress,
   stopExecute,
   font,
+  isMobile,
   textnodes,
 })
