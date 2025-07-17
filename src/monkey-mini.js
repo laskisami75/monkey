@@ -1,12 +1,22 @@
 
+//===================== TODO =====================
+// - Fix toast content formatting
+// - Add animation to toast enter/leave
+// - loadPages
+//   - Add option to parse max page link + link format (solves cases where the full pagination isn't shown)
+//================================================
+
 define(globalThis, {
-  VERSION: 29,
+  VERSION: 30
 })
 function info() {
   console.log(`monkey-mini.js (version: ${VERSION})`)
 }
 function changelog() {
   const log = `
+## Version 30
+- Updated \`Element.show()\` to happen instantly
+
 ## Version 29
 - Updated \`toast(title, text, duration)\` to hide after \`duration\` has passed (was disabled for testing)
 - Tweaked \`changelog()\` display content
@@ -764,7 +774,7 @@ extend(Element.prototype, {
     return this.nextElementSibling
   },
   show() {
-    this.scrollIntoView({ block: 'end' })
+    this.scrollIntoView({ behavior: 'instant', block: 'end' })
   },
   append(...args) {
     return call(domInsert, this, this._append, args)
