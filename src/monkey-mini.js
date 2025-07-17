@@ -1,6 +1,6 @@
 
 define(globalThis, {
-  VERSION: 21,
+  VERSION: 22,
 })
 function info() {
   console.log(`monkey-mini.js (version: ${VERSION})`)
@@ -130,8 +130,8 @@ function changelog() {
         }
         else if (text[i] == `'`) {
           if (text[i+1] == `'`) {
-            i++
             output += text[i]
+            i += 2
           }
           else if (stack.last == 'code') {
             stack.pop()
@@ -150,6 +150,9 @@ function changelog() {
     return output
   }
   const log = md`
+  ## Version 22
+  Debug 'domInsert(fn, args)' for invalid 's.dispatch(''mounted'')' calls
+
   ## Version 21
   Fixed 'frag\`\`' and 'html\`\`' tagged templates from using undeclared variables
   Updated 'changelog()' to now correctly handle ul-li chain depths
@@ -502,8 +505,12 @@ function domInsert(fn, args) {
   const notMounted = args.flatMap(s => !s.isMounted ? s.recurseChildren() : [])
   call(fn, this, ...args)
   
-  if (this.isMounted)
-    notMounted.forEach(s => s.dispatch('mounted'))
+  if (this.isMounted) {
+    notMounted.forEach(s => {
+      console.log(s)
+      s.dispatch('mounted')
+    })
+  }
   
   return define(this, {
     get ids() {
