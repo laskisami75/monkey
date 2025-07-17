@@ -1,13 +1,153 @@
 
 define(globalThis, {
-  VERSION: 19,
+  VERSION: 20,
 })
 function info() {
   console.log(`monkey-mini.js (version: ${VERSION})`)
 }
 function changelog() {
-  const subwindow = window.open('', 'ChangelogWindow')
-  subwindow.document.writeln(`<!DOCTYPE html>
+  // Stands for 'discard whitespace'
+  function dws(strings, ...rest) {
+    const text = String.raw(strings, ...rest).replaceAll('\t', '  ').replaceAll('\r', '').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
+    const [firstLine, ...otherLines] = text.split('\n')
+    const amount = otherLines.min(s => s.search(/\W/))
+    const lines = [firstLine, ...otherLines.map(s => s.slice(amount))]
+    return lines.filter(s => /\W/.test(s)).join('\n')
+  }
+  function md(strings, ...rest) {
+    const text = dws(strings, ...rest)
+    //const lines = text.split('\n')
+    let output = ''
+
+    const stack = []
+    let headingLevel = 0
+    let isLineStart = true
+    let isLineEnd = false
+    let whitespace = ''
+    for (let i = 0; i < text.length; i++) {
+      isLineStart = i == 0 || text[i-1] == '\n'
+      isLineEnd = i == text.length - 1 || text[i] == '\n'
+      if (isLineStart) {
+        if (stack.length > 0)
+          output += stack.reverse().map(s => `</${s}>`).join('')
+        stack.clear()
+
+        headingLevel = 0
+        while (text[i] == '#') {
+          headingLevel++
+          i++
+        }
+
+        if (headingLevel > 0) {
+          headingLevel = Math.min(6, headingLevel)
+          stack.push(`h${headingLevel}`)
+          output += `<h${headingLevel}>`
+        }
+      }
+      else if (isLineEnd) {
+        
+      }
+      else if (/\w/.test(text[i])) {
+        if (isLineStart)
+          continue
+        if (whitespace.length == 0)
+          output += text[i]
+        whitespace += text[i]
+      }
+      else {
+        headingLevel = 0
+        isLineStart = false
+        isLineEnd = false
+        whitespace = ''
+        if (text[i] == `'`) {
+          if (text[i+1] == `'`) {
+            i++
+            output += text[i]
+          }
+          else if (stack.last == 'code') {
+            stack.pop()
+            output += '</code>'
+          }
+          else {
+            stack.push('code')
+            output += '<code>'
+          }
+        }
+        else {
+          output += text[i]
+        }
+      }
+    }
+    return output
+  }
+  const log = md`
+  ## Version 20
+  Fixed 'loadPages(selTarget, selImages, selPagination)' setting gallery navigation correctly
+  Fixed 'selector(sel)' support for empty attribute strings
+  Updated 'EventTarget.listen(type, handler, options)' to support unlistening from the passed event object
+  Added 'toast(title, text, duration)' method
+  - Shows a toast notification on the bottom of the page
+  - Only 'text' parameter is required, defaults to no title and a duration of 4 seconds
+  Added 'serialize(node)' method
+  - Serializes node to html string
+  Added 'html(text)' method
+  - Parses text to dom tree
+  Added 'html\`<html goes here>\`' template string
+  - Allows injecting raw html into 'append' or 'elem' pipeline
+  - This is the same function as 'html(text)', the way it''s called determines the behavior (whether it''s as a function call or as a template string)
+  Added 'isregex(s)' method
+  - Checks if 's' is a regular expression object
+  Added internal 'domInsert(fn, args)' function
+  Removed 'RegExp.escape(text)' extension
+  Updated extension methods 'append', 'prepend' and 'replaceChildren' of 'Element'
+  - These methods now call the internal 'domInsert(fn, args)' function
+  Added extension methods 'append', 'prepend' and 'replaceChildren' to both 'Document' and 'DocumentFragment'
+  - Works the same as above
+  Added 'innerHTML' property to 'DocumentFragment'
+  Added 'insertAdjacentHTML(where, text)' method to 'DocumentFragment'
+  - Works the same as 'Element.insertAdjacentHTML(where, text)'
+  Added 'isMounted' property to 'Node'
+  - Checks if this 'Node' is mounted to 'window.document' root
+  Added 'recurseChildren()' helper method to 'Node'
+  - This is used by the internal 'domInsert(fn, args)' function
+  - Helps with resolving what nodes need to have the 'mounted' event dispatched to them
+  - TODO: Use event bubbling to achieve the same result with less nodes needing to be tracked?
+  Added 'leafNodes' property to 'Node'
+  - Returns all nodes without children under this node
+  - Currently unused in the codebase
+  - WARNING: This method is untested
+  Added '*[Symbol.iterator]()' method to 'NodeIterator'
+  Added 'frag(...nodes)' method
+  Added 'frag\`<html goes here>\`' tagged template
+  Renamed 'isbint(s)' to 'isbigint(s)'
+  Updated 'elem(sel, ...children)' to support 'html\`\`' tagged templates
+  Updated 'is(s, t)' to handle more edge cases
+  Added 'isstrobj(s)', 'isnumobj(s)' and 'isboolobj(s)' methods
+  - Checks if 's' is the object version of either string, number or Boolean
+    - For example, 'assign(''hello'', { data: 123 })' is the object version of string ('isstr(s)' would return false)
+
+  ## Version 19
+  Added array extension methods 'min(fn)', 'max(fn)', 'minIndex(fn)' and 'maxIndex(fn)'
+  Added 'changelog()' method
+  - Opens a popup window with changelogs (what you are currently reading)
+  Added 'isMobile()' method
+  - Checks if platform is mobile or tablet (the check is based on user agent)
+  Updated 'gallery(sel, root)' to support desktop browsers
+  - Use left and right arrow keys to navigate
+  Added 'loadPages(selTarget, selImages, selPagination)' method
+  - Requires 'GM_xmlhttpRequest' permission
+  - Intelligently loads images from paginator pages into current page (assumed to be page 1)
+  - Avoids duplicates (both, duplicate images and duplicate pagination urls)
+  - Parameters:
+    - 'selTarget' is a selector for the element that contains all images
+    - 'selImages' is a selector that picks what elements will be included from loaded pages
+    - 'selPagination' is a selector that selects all paginator links that lead to new pages
+  
+  ## Version 18
+  Added 'Element.show()' shorthand for 'Element.scrollIntoView({ block: 'end' })'
+  `
+  const sub = window.open('', 'ChangelogWindow')
+  sub.document.writeln(`<!DOCTYPE html>
 <html>
 <head>
 <style>
@@ -37,7 +177,7 @@ body {
   gap: .5rem;
 }
 li {
-  padding-block: .15rem;
+  padding-block: .225rem;
 }
 li > ul {
   padding-left: 1.5rem;
@@ -49,41 +189,27 @@ code {
   border-radius: .25rem;
   background: #eaeaf0;
 }
+.todo {
+  font-family: "Roboto Mono", monospace;
+  font-weight: 700;
+  padding: .15rem .3rem;
+  border-radius: .25rem;
+  background: #d0a0f0;
+  color: #502070;
+}
+.warn {
+  font-family: "Roboto Mono", monospace;
+  font-weight: 800;
+  padding: .15rem .3rem;
+  border-radius: .25rem;
+  background: #f0a0a0;
+  color: #702020;
+}
 </style>
 </head>
 <body>
 <div class="container">
-<h2>Version 19</h2>
-<ul>
-<li>Added array extension methods <code>min(fn)</code>, <code>max(fn)</code>, <code>minIndex(fn)</code> and <code>maxIndex(fn)</code>.</li>
-<li>Added <code>changelog()</code> method
-<ul><li>Opens a popup window with changelogs (what you are currently reading)</li></ul>
-</li>
-<li>Added <code>isMobile()</code> method
-<ul>
-<li>Checks if platform is mobile or tablet based on user agent</li>
-</ul>
-</li>
-<li>Updated <code>gallery(sel, root)</code> to support desktop browsers
-<ul>
-<li>Use left and right arrow keys to navigate</li>
-</ul>
-</li>
-<li>Added <code>loadPages(selTarget, selImages, selPagination)</code> method
-<ul>
-<li>Requires <code>GM_xmlhttpRequest</code> permission</li>
-<li>Intelligently loads images from paginator pages into current page (assumed to be page 1)</li>
-<li>Avoids duplicates</li>
-<li>Parameters:
-<ul>
-<li><code>selTarget</code> is a selector for the element that contains all images</li>
-<li><code>selImages</code> is a selector that picks what elements will be included from loaded pages</li>
-<li><code>selPagination</code> is a selector that selects all paginator links that lead to new pages</li>
-</ul>
-</li>
-</ul>
-</li>
-</ul>
+${log}
 </div>
 </body>
 </html>`)
@@ -112,6 +238,31 @@ function str(target) {
   if (isnullobj(target))
     return call(Object.prototype.toString, target)
   return call(Object.getPrototypeOf(target).toString, target)
+}
+function frag(strings, ...rest) {
+  const fragment = new DocumentFragment()
+
+  if (istagged(strings, rest)) {
+    fragment.innerHTML = String.raw(strings, ...args)
+  }
+  else {
+    for (const child of [strings, ...rest].filter()) {
+      if (isstr(child) && child.startsWith('\ue000') && child.endsWith('\ue000'))
+        fragment.insertAdjacentHTML('beforeend', child.slice(1, -1))
+      else
+        fragment.append(child)
+    }
+  }
+  return fragment
+}
+function html(strings, ...rest) {
+  if (isstr(strings))
+    return new DOMParser().parseFromString(strings, 'text/html')
+  return `\ue000${String.raw(strings, ...args)}\ue000`
+  //return elem('div').set(el => el.outerHTML = String.raw(strings, ...rest))
+}
+function serialize(node) {
+  return new XMLSerializer().serializeToString(node)
 }
 function keys(target) {
   if (isprim(target))
@@ -197,7 +348,26 @@ function type(s) {
   return typeof s
 }
 function is(s, t) {
-  return s instanceof t
+  if (s === null)
+    return false
+  if (typeof s == 'object')
+    return s instanceof t
+  if (t == String)
+    return isstr(s)
+  if (t == Number)
+    return isnum(s)
+  if (t == Boolean)
+    return isbool(s)
+  if (t == Symbol)
+    return issym(s)
+  if (t == Function)
+    return isfn(s)
+  if (t == BigInt)
+    return isbigint(s)
+  if (t == Iterator)
+    return isiter(s)
+  console.error(`is(s, t): Call arguments (${s} and ${t.name}) did not match any of the expected cases. Returning false as a precaution.`)
+  return false
 }
 
 function isnull(s) { return s === null }
@@ -207,7 +377,7 @@ function isnum(s) { return typeof s == 'number' }
 function isbool(s) { return typeof s == 'boolean' }
 function issym(s) { return typeof s == 'symbol' }
 function isfn(s) { return typeof s == 'function' }
-function isbint(s) { return typeof s == 'bigint' }
+function isbigint(s) { return typeof s == 'bigint' }
 function isobj(s) { return type(s) == 'object' }
 function isarr(s) { return Array.isArray(s) }
 function isiter(s) { return has(s, Symbol.iterator) }
@@ -215,12 +385,17 @@ function isprim(s) { return !((s && typeof s == 'object') || typeof s == 'functi
 function isgen(s) { return is(s, Generator) }
 function isctor(s) { return isfn(s) && s.prototype?.constructor == s }
 function isnullobj(s) { return s && typeof s == 'object' && !is(s, Object) }
+function isstrobj(s) { return s && typeof s == 'object' && is(s, String) }
+function isnumobj(s) { return s && typeof s == 'object' && is(s, Number) }
+function isboolobj(s) { return s && typeof s == 'object' && is(s, Boolean) }
 function isdesc(s) { return has(s, 'configurable', 'enumerable') && (has(s, 'writable', 'value') || has(s, 'get', 'set')) }
+function isregex(s) { return is(s, RegExp) }
+function istagged(s, t) { return isarr(s) && s.every(isstr) && isarr(t) && t.every(isstr) && s.length == t.length + 1 }
 function arrof(s, t) { return s.every(s => is(s, t)) }
 
 /*=============== dom.js ===============*/
 function selector(sel = '') {
-  const masked = sel.trim().mask(/"[^"]+"|'[^']+'/g)
+  const masked = sel.trim().mask(/"[^"]*"|'[^']*'/g)
   const parts = masked.unmask(masked.str.split(/(?=\#|\.|\[)/g))
   const output = {
     tag: 'div',
@@ -233,7 +408,7 @@ function selector(sel = '') {
       return { name: s, value: '' }
     return {
       name: s.slice(0, i),
-      value: s.slice(i + 1).trim('"').trim('\'')
+      value: s.slice(i + 1).trim(`"`).trim(`'`)
     }
   }
   for (const part of parts) {
@@ -247,6 +422,21 @@ function selector(sel = '') {
       output.tag = part
   }
   return output
+}
+function domInsert(fn, args) {
+  args = args.filter(s => s).map(s => isstr(s) ? new Text(s) : s)
+  
+  const notMounted = args.flatMap(s => !s.isMounted ? s.recurseChildren() : [])
+  call(fn, this, ...args)
+  
+  if (this.isMounted)
+    notMounted.forEach(s => s.dispatch('mounted'))
+  
+  return define(this, {
+    get ids() {
+      return $$('[id]', this).reduce((s, n) => assign(s, obj(n.id.dehyphenate(), n)), {})
+    },
+  })
 }
 function singleObserver() {
   const stackMap = new Map()
@@ -308,7 +498,12 @@ function elem(sel, ...children) {
     el.classList.add(...classes)
   for (const attr of attrs)
     el.setAttribute(attr.name, attr.value)
-  el.append(...children.filter(s => s))
+  for (const child of children.filter()) {
+    if (isstr(child) && child.startsWith('\ue000') && child.endsWith('\ue000'))
+      el.insertAdjacentHTML('beforeend', child.slice(1, -1))
+    else
+      el.append(child)
+  }
   return el
 }
 function $$style(...cssSets) {
@@ -371,11 +566,6 @@ function openStore(id) {
 /*=============== extend.js ===============*/
 define(Symbol, {
   extensions: Symbol.extensions ?? Symbol('extensions'),
-})
-extend(RegExp, {
-  escape(text) {
-    return text.replace(/[()\[\]{}|\\^$*+?.]/g, '\\$&')
-  },
 })
 extend(String.prototype, {
   toInt() {
@@ -552,6 +742,10 @@ extend(Array.prototype, {
   maxIndex(fn = s => s) {
     return this.reduce((s, n, i) => fn(this[s]) > fn(n) ? s : i, 0)
   },
+  clear() {
+    this.splice(0, this.length)
+    return this
+  },
   get last() {
     return this[this.length-1]
   },
@@ -578,6 +772,17 @@ extend(Window.prototype, {
     return this.document.body
   },
 })
+extend(Document.prototype, {
+  append(...args) {
+    return call(domInsert, this, this._append, args)
+  },
+  prepend(...args) {
+    return call(domInsert, this, this._prepend, args)
+  },
+  replaceChildren(...args) {
+    return call(domInsert, this, this._replaceChildren, args)
+  },
+})
 extend(Element.prototype, {
   get rect() {
     return this.getBoundingClientRect()
@@ -602,38 +807,47 @@ extend(Element.prototype, {
     this.scrollIntoView({ block: 'end' })
   },
   append(...args) {
-    args = args.filter(s => s)
-    this._append(...args)
-    
-    return define(this, {
-      get ids() {
-        return $$('[id]', this).reduce((s, n) => assign(s, { [n.id.dehyphenate()]: n }), {})
-      },
-    })
+    return call(domInsert, this, this._append, args)
   },
   prepend(...args) {
-    args = args.filter(s => s)
-    this._prepend(...args)
-    
-    return define(this, {
-      get ids() {
-        return $$('[id]', this).reduce((s, n) => assign(s, { [n.id.dehyphenate()]: n }), {})
-      },
-    })
+    return call(domInsert, this, this._prepend, args)
   },
   replaceChildren(...args) {
-    args = args.filter(s => s)
-    this._replaceChildren(...args)
-    
-    return define(this, {
-      get ids() {
-        return $$('[id]', this).reduce((s, n) => assign(s, { [n.id.dehyphenate()]: n }), {})
-      },
-    })
+    return call(domInsert, this, this._replaceChildren, args)
   },
   set(fn) {
     call(fn, this, this)
     return this
+  },
+})
+extend(DocumentFragment.prototype, {
+  get innerHTML() {
+    return serialize(this)
+      .replaceAll(' xmlns="http://www.w3.org/1999/xhtml"', '')
+  },
+  set innerHTML(value) {
+    const el = elem('template')
+    el.innerHTML = value
+    this.replaceChildren(el.content)
+  },
+  append(...args) {
+    return call(domInsert, this, this._append, args)
+  },
+  prepend(...args) {
+    return call(domInsert, this, this._prepend, args)
+  },
+  replaceChildren(...args) {
+    return call(domInsert, this, this._replaceChildren, args)
+  },
+  insertAdjacentHTML(where, text) {
+    if (where == 'beforebegin')
+      this.parent.prepend(document.createRange().createContextualFragment(text))
+    if (where == 'afterbegin')
+      this.prepend(document.createRange().createContextualFragment(text))
+    if (where == 'beforeend')
+      this.append(document.createRange().createContextualFragment(text))
+    if (where == 'afterend')
+      this.parent.append(document.createRange().createContextualFragment(text))
   },
 })
 extend(Node.prototype, {
@@ -645,6 +859,25 @@ extend(Node.prototype, {
   },
   get parent() {
     return this.parentElement
+  },
+  get isMounted() {
+    let node = this
+    while (node.parentNode)
+      node = node.parentNode
+    return node == document
+  },
+  get leafNodes() {
+    return this.recurseChildren().filter(s => s.childNodes.length == 0)
+  },
+  recurseChildren() {
+    const output = []
+    function traverse(node) {
+      output.push(node)
+      for (const child of node.childNodes)
+        traverse(child)
+    }
+    traverse(this)
+    return output
   },
 })
 extend(EventTarget.prototype, {
@@ -663,7 +896,10 @@ extend(EventTarget.prototype, {
       ...(this.listeners.get(type) ?? []),
       unlisten,
     ])
-    this.addEventListener(type, handler, options)
+    function delegate(e) {
+      return handler(define(e, { unlisten }))
+    }
+    this.addEventListener(type, delegate, options)
     return unlisten
   },
   unlisten(type) {
@@ -674,6 +910,15 @@ extend(EventTarget.prototype, {
     else {
       for (const fn of this.listeners.get(type))
         fn()
+    }
+  },
+})
+extend(NodeIterator.prototype, {
+  *[Symbol.iterator]() {
+    let n = this.nextNode()
+    while (n) {
+      yield n
+      n = this.nextNode()
     }
   },
 })
@@ -721,8 +966,9 @@ async function loadPages(selTarget, selImages, selPagination) {
     const images = $$(selImages, dom).filter(isNewImage)
     target.append(...images)
   }
-  console.log(`${urls.length} pages, ${count} => ${$$(selImages).length} images`)
-  gallery()
+  //console.log(`${urls.length} pages, ${count} => ${$$(selImages).length} images`)
+  toast('Loading complete', `${urls.length} pages, ${count} => ${$$(selImages).length} images`)
+  gallery(selImages)
   progress()
 }
 function gallery(sel, root) {
@@ -837,6 +1083,60 @@ function* textnodes() {
   }
 }
 
+/*=============== ui.js ===============*/
+function toast(title, text, duration) {
+  if (text === undefined)
+    [title, text, duration] = [undefined, title, 4000]
+  else if (isnum(text))
+    [title, text, duration] = [undefined, title, text]
+
+  const css = imp`
+#monkey {
+  width: 100%;
+  position: fixed;
+  left: 0;
+  bottom: 2rem;
+  display: flex;
+  justify-content: center;
+  z-index: 900000;
+}
+#monkey #toast {
+  max-width: 66.667vw;
+  display: grid;
+  padding: .5rem 1rem;
+  background: #10191c;
+  border-radius: .5rem;
+  border: 2px solid #1a2326;
+  cursor: pointer;
+  box-shadow: #00000060 0px 3px 8px, #00000080 0px 3px 16px;
+}
+#monkey #toast .title {
+  text-transform: uppercase;
+  font-size: .725rem;
+  font-weight: 700;
+  line-height: 1.1667;
+}
+#monkey #toast .text {
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.3333;
+}
+  `
+  const el = elem('#monkey',
+    elem('style', css),
+    elem('#toast',
+      title === undefined ? null : elem('.title', title),
+      elem('.text', frag`${text.replaceAll(/'([^']+)'/g, '<code>$1</code>').replaceAll(`''`, `'`)}`),
+    ),
+  )
+  body.append(el)
+  //setTimeout(() => el.remove(), duration ?? 4000)
+
+  el.onclick = e => {
+    el.remove()
+  }
+}
+
 /*=============== extend-more.js ===============*/
 extend(globalThis, {
   info,
@@ -845,6 +1145,9 @@ extend(globalThis, {
   obj,
   has,
   str,
+  frag,
+  html,
+  serialize,
   keys,
   list,
   call,
@@ -865,7 +1168,7 @@ extend(globalThis, {
   isbool,
   issym,
   isfn,
-  isbint,
+  isbigint,
   isobj,
   isarr,
   isiter,
@@ -873,7 +1176,12 @@ extend(globalThis, {
   isgen,
   isctor,
   isnullobj,
+  isstrobj,
+  isnumobj,
+  isboolobj,
   isdesc,
+  isregex,
+  istagged,
   arrof,
   $,
   $$,
@@ -892,4 +1200,5 @@ extend(globalThis, {
   font,
   isMobile,
   textnodes,
+  toast,
 })
