@@ -1,6 +1,6 @@
 
 define(globalThis, {
-  VERSION: 20,
+  VERSION: 21,
 })
 function info() {
   console.log(`monkey-mini.js (version: ${VERSION})`)
@@ -17,27 +17,87 @@ function changelog() {
   function md(strings, ...rest) {
     const text = dws(strings, ...rest)
     //const lines = text.split('\n')
-    let output = ''
 
+    function getDepth(line) {
+      const index = line.search(/\W/)
+      // Should never happen
+      if (index == -1)
+        return 0
+      if (line[index] == '-')
+        return index / 2 + 1
+      return 0
+    }
+
+    let output = ''
     const stack = []
     let headingLevel = 0
     let isLineStart = true
     let isLineEnd = false
+    let textFromIndex = ''
     let whitespace = ''
+    let currentLine = text.slice(0, text.indexOf('\n'))
+    let prevLine = ''
     for (let i = 0; i < text.length; i++) {
       isLineStart = i == 0 || text[i-1] == '\n'
       isLineEnd = i == text.length - 1 || text[i] == '\n'
+      textFromIndex = text.slice(i)
+
       if (isLineStart) {
+        currentLine = text.slice(i, text.indexOf('\n', i) > i ? text.indexOf('\n', i) : text.length)
+
+        if (stack.last == 'ul') {
+          stack.pop()
+          output += '</ul>'
+        }
+
+        const depthDiff = getDepth(currentLine) - getDepth(prevLine)
+        if (depthDiff < 0) {
+          let j = 0
+          while (j < -depthDiff) {
+            const last = stack.pop()
+            output += `</${last}>`
+
+            if (stack.last == 'ul') {
+              stack.pop()
+              output += '</ul>'
+            }
+
+            j++
+          }
+        }
+        else if (depthDiff > 0) {
+          let j = 0
+          while (j < depthDiff) {
+            stack.push('ul')
+            output += '<ul>'
+
+            stack.push('li')
+            output += '<li>'
+
+            j++
+          }
+        }
+        else {
+          const last = stack.pop()
+          output += `</${last}>`
+
+          stack.push('li')
+          output += '<li>'
+        }
+
+        /*// Close all opened tags
         if (stack.length > 0)
           output += stack.reverse().map(s => `</${s}>`).join('')
-        stack.clear()
+        stack.clear()*/
 
+        // Check heading level
         headingLevel = 0
         while (text[i] == '#') {
           headingLevel++
           i++
         }
 
+        // This is a heading, handle it as such
         if (headingLevel > 0) {
           headingLevel = Math.min(6, headingLevel)
           stack.push(`h${headingLevel}`)
@@ -45,7 +105,7 @@ function changelog() {
         }
       }
       else if (isLineEnd) {
-        
+        prevLine = currentLine
       }
       else if (/\w/.test(text[i])) {
         if (isLineStart)
@@ -59,7 +119,16 @@ function changelog() {
         isLineStart = false
         isLineEnd = false
         whitespace = ''
-        if (text[i] == `'`) {
+
+        if (/^TODO\b/.test(textFromIndex)) {
+          output += `<span class="todo">TODO</span>`
+          i += 4
+        }
+        else if (/^WARNING\b/.test(textFromIndex)) {
+          output += `<span class="warn">WARNING</span>`
+          i += 7
+        }
+        else if (text[i] == `'`) {
           if (text[i+1] == `'`) {
             i++
             output += text[i]
@@ -81,6 +150,10 @@ function changelog() {
     return output
   }
   const log = md`
+  ## Version 21
+  Fixed 'frag\`\`' and 'html\`\`' tagged templates from using undeclared variables
+  Updated 'changelog()' to now correctly handle ul-li chain depths
+
   ## Version 20
   Fixed 'loadPages(selTarget, selImages, selPagination)' setting gallery navigation correctly
   Fixed 'selector(sel)' support for empty attribute strings
@@ -111,11 +184,11 @@ function changelog() {
   Added 'recurseChildren()' helper method to 'Node'
   - This is used by the internal 'domInsert(fn, args)' function
   - Helps with resolving what nodes need to have the 'mounted' event dispatched to them
-  - TODO: Use event bubbling to achieve the same result with less nodes needing to be tracked?
+  - TODO Use event bubbling to achieve the same result with less nodes needing to be tracked?
   Added 'leafNodes' property to 'Node'
   - Returns all nodes without children under this node
   - Currently unused in the codebase
-  - WARNING: This method is untested
+  - WARNING This method is untested
   Added '*[Symbol.iterator]()' method to 'NodeIterator'
   Added 'frag(...nodes)' method
   Added 'frag\`<html goes here>\`' tagged template
@@ -243,7 +316,7 @@ function frag(strings, ...rest) {
   const fragment = new DocumentFragment()
 
   if (istagged(strings, rest)) {
-    fragment.innerHTML = String.raw(strings, ...args)
+    fragment.innerHTML = String.raw(strings, ...rest)
   }
   else {
     for (const child of [strings, ...rest].filter()) {
@@ -258,7 +331,7 @@ function frag(strings, ...rest) {
 function html(strings, ...rest) {
   if (isstr(strings))
     return new DOMParser().parseFromString(strings, 'text/html')
-  return `\ue000${String.raw(strings, ...args)}\ue000`
+  return `\ue000${String.raw(strings, ...rest)}\ue000`
   //return elem('div').set(el => el.outerHTML = String.raw(strings, ...rest))
 }
 function serialize(node) {
