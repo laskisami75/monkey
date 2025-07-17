@@ -1,6 +1,6 @@
 
 define(globalThis, {
-  VERSION: 22,
+  VERSION: 23,
 })
 function info() {
   console.log(`monkey-mini.js (version: ${VERSION})`)
@@ -150,6 +150,9 @@ function changelog() {
     return output
   }
   const log = md`
+  ## Version 23
+  Debug 'domInsert(fn, args)' for invalid 's.dispatch(''mounted'')' calls (attempt 2)
+
   ## Version 22
   Debug 'domInsert(fn, args)' for invalid 's.dispatch(''mounted'')' calls
 
@@ -507,7 +510,7 @@ function domInsert(fn, args) {
   
   if (this.isMounted) {
     notMounted.forEach(s => {
-      console.log(s)
+      console.log('%O', s, is(s, EventTarget))
       s.dispatch('mounted')
     })
   }
