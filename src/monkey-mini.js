@@ -1,6 +1,6 @@
 
 define(globalThis, {
-  VERSION: 23,
+  VERSION: 24,
 })
 function info() {
   console.log(`monkey-mini.js (version: ${VERSION})`)
@@ -30,6 +30,7 @@ function changelog() {
 
     let output = ''
     const stack = []
+    let i = 0
     let headingLevel = 0
     let isLineStart = true
     let isLineEnd = false
@@ -37,7 +38,7 @@ function changelog() {
     let whitespace = ''
     let currentLine = text.slice(0, text.indexOf('\n'))
     let prevLine = ''
-    for (let i = 0; i < text.length; i++) {
+    while (i < text.length) {
       isLineStart = i == 0 || text[i-1] == '\n'
       isLineEnd = i == text.length - 1 || text[i] == '\n'
       textFromIndex = text.slice(i)
@@ -108,11 +109,12 @@ function changelog() {
         prevLine = currentLine
       }
       else if (/\w/.test(text[i])) {
-        if (isLineStart)
-          continue
-        if (whitespace.length == 0)
-          output += text[i]
-        whitespace += text[i]
+        if (!isLineStart) {
+          if (whitespace.length == 0)
+            output += text[i]
+          whitespace += text[i]
+        }
+        i++
       }
       else {
         headingLevel = 0
@@ -136,20 +138,26 @@ function changelog() {
           else if (stack.last == 'code') {
             stack.pop()
             output += '</code>'
+            i++
           }
           else {
             stack.push('code')
             output += '<code>'
+            i++
           }
         }
         else {
           output += text[i]
+          i++
         }
       }
     }
     return output
   }
   const log = md`
+  ## Version 24
+  Attempted fix on 'changelog()'
+
   ## Version 23
   Debug 'domInsert(fn, args)' for invalid 's.dispatch(''mounted'')' calls (attempt 2)
 
