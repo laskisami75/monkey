@@ -1,160 +1,15 @@
 
 define(globalThis, {
-  VERSION: 24,
+  VERSION: 25,
 })
 function info() {
   console.log(`monkey-mini.js (version: ${VERSION})`)
 }
 function changelog() {
-  // Stands for 'discard whitespace'
-  function dws(strings, ...rest) {
-    const text = String.raw(strings, ...rest).replaceAll('\t', '  ').replaceAll('\r', '').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
-    const [firstLine, ...otherLines] = text.split('\n')
-    const amount = otherLines.min(s => s.search(/\W/))
-    const lines = [firstLine, ...otherLines.map(s => s.slice(amount))]
-    return lines.filter(s => /\W/.test(s)).join('\n')
-  }
-  function md(strings, ...rest) {
-    const text = dws(strings, ...rest)
-    //const lines = text.split('\n')
+  const log = `
+  ## Version 25
+  Changed 'changelog()' to use showdownjs library
 
-    function getDepth(line) {
-      const index = line.search(/\W/)
-      // Should never happen
-      if (index == -1)
-        return 0
-      if (line[index] == '-')
-        return index / 2 + 1
-      return 0
-    }
-
-    let output = ''
-    const stack = []
-    let i = 0
-    let headingLevel = 0
-    let isLineStart = true
-    let isLineEnd = false
-    let textFromIndex = ''
-    let whitespace = ''
-    let currentLine = text.slice(0, text.indexOf('\n'))
-    let prevLine = ''
-    while (i < text.length) {
-      isLineStart = i == 0 || text[i-1] == '\n'
-      isLineEnd = i == text.length - 1 || text[i] == '\n'
-      textFromIndex = text.slice(i)
-
-      if (isLineStart) {
-        currentLine = text.slice(i, text.indexOf('\n', i) > i ? text.indexOf('\n', i) : text.length)
-
-        if (stack.last == 'ul') {
-          stack.pop()
-          output += '</ul>'
-        }
-
-        const depthDiff = getDepth(currentLine) - getDepth(prevLine)
-        if (depthDiff < 0) {
-          let j = 0
-          while (j < -depthDiff) {
-            const last = stack.pop()
-            output += `</${last}>`
-
-            if (stack.last == 'ul') {
-              stack.pop()
-              output += '</ul>'
-            }
-
-            j++
-          }
-        }
-        else if (depthDiff > 0) {
-          let j = 0
-          while (j < depthDiff) {
-            stack.push('ul')
-            output += '<ul>'
-
-            stack.push('li')
-            output += '<li>'
-
-            j++
-          }
-        }
-        else {
-          const last = stack.pop()
-          output += `</${last}>`
-
-          stack.push('li')
-          output += '<li>'
-        }
-
-        /*// Close all opened tags
-        if (stack.length > 0)
-          output += stack.reverse().map(s => `</${s}>`).join('')
-        stack.clear()*/
-
-        // Check heading level
-        headingLevel = 0
-        while (text[i] == '#') {
-          headingLevel++
-          i++
-        }
-
-        // This is a heading, handle it as such
-        if (headingLevel > 0) {
-          headingLevel = Math.min(6, headingLevel)
-          stack.push(`h${headingLevel}`)
-          output += `<h${headingLevel}>`
-        }
-      }
-      else if (isLineEnd) {
-        prevLine = currentLine
-      }
-      else if (/\w/.test(text[i])) {
-        if (!isLineStart) {
-          if (whitespace.length == 0)
-            output += text[i]
-          whitespace += text[i]
-        }
-        i++
-      }
-      else {
-        headingLevel = 0
-        isLineStart = false
-        isLineEnd = false
-        whitespace = ''
-
-        if (/^TODO\b/.test(textFromIndex)) {
-          output += `<span class="todo">TODO</span>`
-          i += 4
-        }
-        else if (/^WARNING\b/.test(textFromIndex)) {
-          output += `<span class="warn">WARNING</span>`
-          i += 7
-        }
-        else if (text[i] == `'`) {
-          if (text[i+1] == `'`) {
-            output += text[i]
-            i += 2
-          }
-          else if (stack.last == 'code') {
-            stack.pop()
-            output += '</code>'
-            i++
-          }
-          else {
-            stack.push('code')
-            output += '<code>'
-            i++
-          }
-        }
-        else {
-          output += text[i]
-          i++
-        }
-      }
-    }
-    return output
-  }
-  const log = md`
   ## Version 24
   Attempted fix on 'changelog()'
 
@@ -237,6 +92,12 @@ function changelog() {
   sub.document.writeln(`<!DOCTYPE html>
 <html>
 <head>
+<script src="https://unpkg.com/showdown@2.1.0/dist/showdown.min.js" defer></script>
+<script>
+const htmlText = new showdown.Converter().makeHtml('# hello, markdown!')
+const cont = document.querySelector('#container')
+cont.innerHTML = htmlText
+</script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:ital,wght@0,100..700;1,100..700&family=Roboto:ital,wght@0,100..900;1,100..900&display=swap');
 
@@ -256,7 +117,7 @@ body {
   box-sizing: border-box;
   margin: 0;
 }
-.container {
+#container {
   width: 66.667vw;
   height: min-content;
   padding: 1rem;
@@ -295,8 +156,7 @@ code {
 </style>
 </head>
 <body>
-<div class="container">
-${log}
+<div id="container">
 </div>
 </body>
 </html>`)
