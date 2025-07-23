@@ -6,7 +6,7 @@
 //   - Use smooth scroll to progress beyond images
 //================================================
 define(globalThis, {
-  MONKEY_VERSION: 35
+  MONKEY_VERSION: 36
 })
 
 /*=============== helpers.js ===============*/
@@ -101,6 +101,11 @@ function define(target, defines) {
   if (list(Object.getOwnPropertyDescriptors(defines)).every(s => isdesc(s.value)))
     return Object.defineProperties(target, defines)
   return Object.defineProperties(target, Object.getOwnPropertyDescriptors(defines))
+}
+function undefine(target, keys) {
+  for (const key of keys)
+    delete target[key]
+  return target
 }
 function extend(target, defines) {
   defines = Object.getOwnPropertyDescriptors(defines)
@@ -542,13 +547,19 @@ extend(Array.prototype, {
     this.splice(0, this.length)
     return this
   },
-  remove(item) {
-    const index = this.indexOf(item)
-    if (index == -1)
-      return this
+  remove(items) {
+    if (isarr(items)) {
+      for (const item of items)
+        this.remove(item)
+    }
+    else {
+      const index = this.indexOf(items)
+      if (index == -1)
+        return this
 
-    this.splice(index, 1)
-    return this
+      this.splice(index, 1)
+      return this
+    }
   },
   get last() {
     return this[this.length-1]
@@ -684,59 +695,6 @@ extend(Node.prototype, {
     return output
   },
 })
-extend(EventTarget.prototype, {
-  listeners: new Map(),
-  addEventListener(type, handler, options) {
-    return listen(type, handler, options, 'addEventListener')
-  },
-  removeEventListener(type, handler, options) {
-    for (const data of this.listeners.get(type)) {
-      if (data.handler == handler && equals(data.options, options)) {
-        data.unlisten()
-        this.listeners.set(type, this.listeners.get(type).remove(data))
-        return
-      }
-    }
-  },
-  dispatch(type, props = {}) {
-    this.dispatchEvent(new (class extends Event {
-      constructor() {
-        super(type, props)
-        define(this, props)
-      }
-    })())
-  },
-  listen(type, handler, options, created) {
-    created ??= 'listen'
-    const unlisten = () => this._removeEventListener(type, handler, options)
-    this.listeners.set(type, [
-      ...(this.listeners.get(type) ?? []),
-      {
-        type,
-        unlisten,
-        handler,
-        options,
-        created,
-      },
-    ])
-    function delegate(e) {
-      return handler(define(e, { unlisten }))
-    }
-    this._addEventListener(type, delegate, options)
-    return unlisten
-  },
-  unlisten(type) {
-    if (type === undefined) {
-      for (const [type, array] of this.listeners)
-        this.unlisten(type)
-    }
-    else {
-      for (const data of (this.listeners.get(type) ?? []))
-        data.unlisten()
-      this.listeners.set(type, [])
-    }
-  },
-})
 extend(NodeIterator.prototype, {
   *[Symbol.iterator]() {
     let n = this.nextNode()
@@ -757,39 +715,104 @@ extend(Image, {
     }
   },
 })
+extend(EventTarget, {
+  targets: new Map(),
+})
+extend(EventTarget.prototype, {
+  addEventListener(type, handler, options) {
+    const events = EventTarget.targets.get(this) ?? EventTarget.targets.set(this, []).get(this)
+    events.push({ type, handler, options, method: 'add' })
+
+    this._addEventListener(type, handler, options)
+  },
+  removeEventListener(type, handler, options) {
+    const events = EventTarget.targets.get(this)
+    if (events) {
+      const params = events.filter(s => s.type == type && s.handler == handler && equals(s.options, options))
+      events.remove(params)
+
+      for (const param of params)
+        this._removeEventListener(param.type, param.handler, param.options)
+    }
+  },
+  dispatch(type, props = {}) {
+    this.dispatchEvent(new (class extends Event {
+      constructor() {
+        super(type, props)
+        define(this, props)
+      }
+    })())
+  },
+  listen(type, handler, options) {
+    const unlisten = () => this._removeEventListener(type, handler, options)
+    function delegate(e) {
+      return handler(define(e, { unlisten }))
+    }
+
+    const events = EventTarget.targets.get(this) ?? EventTarget.targets.set(this, []).get(this)
+    events.push({ type, handler: delegate, options, method: 'listen' })
+
+    this._addEventListener(type, delegate, options)
+  },
+  unlisten(type) {
+    const events = EventTarget.targets.get(this)
+    if (events) {
+      const params = isstr(type) ? events.filter(s => s.type == type) : (isfn(type) ? events.filter(s => s.handler == type) : [])
+      events.remove(params)
+
+      for (const param of params)
+        this._removeEventListener(param.type, param.handler, param.options)
+    }
+  },
+})
 
 /*=============== events.js ===============*/
-function inlineEvents(target) {
-  return keys(target)
-    .filter(s => isstr(s) && s.startsWith('on') && isfn(target[s]))
-    .map(s => {
-      const unlisten = () => target[s] = null
-      const handler = target[s]
-      return {
-        type: s.slice(2),
-        unlisten,
-        handler,
-        options: {},
-        created: 'inline',
+const eventNames = [EventTarget.prototype, Node.prototype, Element.prototype, HTMLElement.prototype, Document.prototype, Window.prototype]
+  .flatMap(s => keys(s).filter(key => isstr(key) && key.startsWith('on')))
+  .unique()
+undefine(EventTarget.prototype, eventNames)
+undefine(Node.prototype, eventNames)
+undefine(Element.prototype, eventNames)
+undefine(HTMLElement.prototype, eventNames)
+undefine(Document.prototype, eventNames)
+undefine(Window.prototype, eventNames)
+eventNames.forEach(name => {
+  const type = name.slice(2)
+  define(EventTarget.prototype, {
+    get [name]() {
+      const events = EventTarget.targets.get(this)
+      if (events)
+        return events.Find(s => s.type == type && s.method == 'inline')
+      return null
+    },
+    set [name](handler) {
+      console.log('this', this)
+
+      const eventsBefore = EventTarget.targets.get(this)
+      if (eventsBefore) {
+        const event = eventsBefore.Find(s => s.type == type && s.method == 'inline')
+        if (event)
+          this._removeEventListener(event.type, event.handler, event.options)
       }
-    })
-}
+
+      if (handler) {
+        const events = EventTarget.targets.get(this) ?? []
+        events.push({ type, handler, options: undefined, method: 'inline' })
+        EventTarget.targets.set(this, events)
+
+        this._addEventListener(type, handler)
+      }
+    },
+  })
+})
 function events(type) {
-  const output = [window, ...document.createNodeIterator(document, NodeFilter.SHOW_ALL)]
-    .map(target => {
-      return {
-        target,
-        events: [
-          ...inlineEvents(target),
-          ...arr(target.listeners).map(s => ({ type: s[0], ...s[1] }))
-        ]
-      }
+  return arr(EventTarget.targets)
+    .flatMap(([el, ev]) => ev.map(s => ({ element: el, ...s })))
+    .filter(s => {
+      if (isstr(type))
+        return s.type == type
+      return s.handler == type
     })
-    .filter(s => s.events.length > 0)
-  
-  if (type === undefined)
-    return output
-  return output.filter(s => s.events.type == type)
 }
 
 /*=============== monkey.js ===============*/
@@ -1030,6 +1053,7 @@ extend(globalThis, {
   char,
   desc,
   define,
+  undefine,
   extend,
   assign,
   type,
@@ -1065,7 +1089,6 @@ extend(globalThis, {
   $aa,
   $$aa,
   openStore,
-  inlineEvents,
   events,
   loadPages,
   gallery,
