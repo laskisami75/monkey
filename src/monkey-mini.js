@@ -1,185 +1,14 @@
 
 //===================== TODO =====================
-// - Fix toast content formatting
 // - Add animation to toast enter/leave
 // - loadPages
 //   - Add option to parse max page link + link format (solves cases where the full pagination isn't shown)
+// - gallery
+//   - Use smooth scroll to progress beyond images
 //================================================
-
 define(globalThis, {
-  VERSION: 30
+  MONKEY_VERSION: 31
 })
-function info() {
-  console.log(`monkey-mini.js (version: ${VERSION})`)
-}
-function changelog() {
-  const log = `
-## Version 30
-- Updated \`Element.show()\` to happen instantly
-
-## Version 29
-- Updated \`toast(title, text, duration)\` to hide after \`duration\` has passed (was disabled for testing)
-- Tweaked \`changelog()\` display content
-
-## Version 28
-- Updated \`changelog()\` to show the actual changelog instead of debug dummy content
-
-## Version 27
-- Changed \`changelog()\` to using showdownjs that's loaded inside the userscript
-
-## Version 26
-- Inlined showdownjs cdn script in \`changelog()\`
-
-## Version 25
-- Changed \`changelog()\` to use showdownjs library
-
-## Version 24
-- Attempted fix on \`changelog()\`
-
-## Version 23
-- Debug \`domInsert(fn, args)\` for invalid \`s.dispatch('mounted')\` calls (attempt 2)
-
-## Version 22
-- Debug \`domInsert(fn, args)\` for invalid \`s.dispatch('mounted')\` calls
-
-## Version 21
-- Fixed \`frag\` and \`html\` tagged templates from using undeclared variables
-- Updated \`changelog()\` to now correctly handle ul- li chain depths
-
-## Version 20
-- Fixed \`loadPages(selTarget, selImages, selPagination)\` setting gallery navigation correctly
-- Fixed \`selector(sel)\` support for empty attribute strings
-- Updated \`EventTarget.listen(type, handler, options)\` to support unlistening from the passed event object
-- Added \`toast(title, text, duration)\` method
-   - Shows a toast notification on the bottom of the page
-   - Only \`text\` parameter is required, defaults to no title and a duration of 4 seconds
-- Added \`serialize(node)\` method
-   - Serializes node to html string
-- Added \`html(text)\` method
-   - Parses text to dom tree
-- Added \`\`html\`<html goes here>\`\ufeff\`\` template string
-   - Allows injecting raw html into \`append\` or \`elem\` pipeline
-   - This is the same function as \`html(text)\`, the way it's called determines the behavior (whether it's as a function call or as a template string)
-- Added \`isregex(s)\` method
-   - Checks if \`s\` is a regular expression object
-- Added internal \`domInsert(fn, args)\` function
-- Removed \`RegExp.escape(text)\` extension
-- Updated extension methods \`append\`, \`prepend\` and \`replaceChildren\` of \`Element\`
-   - These methods now call the internal \`domInsert(fn, args)\` function
-- Added extension methods \`append\`, \`prepend\` and \`replaceChildren\` to both \`Document\` and \`DocumentFragment\`
-   - Works the same as above
-- Added \`innerHTML\` property to \`DocumentFragment\`
-- Added \`insertAdjacentHTML(where, text)\` method to \`DocumentFragment\`
-   - Works the same as \`Element.insertAdjacentHTML(where, text)\`
-- Added \`isMounted\` property to \`Node\`
-   - Checks if this \`Node\` is mounted to \`window.document\` root
-- Added \`recurseChildren()\` helper method to \`Node\`
-   - This is used by the internal \`domInsert(fn, args)\` function
-   - Helps with resolving what nodes need to have the \`mounted\` event dispatched to them
-   - TODO Use event bubbling to achieve the same result with less nodes needing to be tracked?
-- Added \`leafNodes\` property to \`Node\`
-   - Returns all nodes without children under this node
-   - Currently unused in the codebase
-   - WARNING This method is untested
-- Added \`*[Symbol.iterator]()\` method to \`NodeIterator\`
-- Added \`frag(...nodes)\` method
-- Added \`\`frag\`<html goes here>\`\ufeff\`\` tagged template
-- Renamed \`isbint(s)\` to \`isbigint(s)\`
-- Updated \`elem(sel, ...children)\` to support \`html\` tagged templates
-- Updated \`is(s, t)\` to handle more edge cases
-- Added \`isstrobj(s)\`, \`isnumobj(s)\` and \`isboolobj(s)\` methods
-   - Checks if \`s\` is the object version of either string, number or Boolean
-      - For example, \`assign('hello', { data: 123 })\` is the object version of string (\`isstr(s)\` would return false)
-
-## Version 19
-- Added array extension methods \`min(fn)\`, \`max(fn)\`, \`minIndex(fn)\` and \`maxIndex(fn)\`
-- Added \`changelog()\` method
-   - Opens a popup window with changelogs (what you are currently reading)
-- Added \`isMobile()\` method
-   - Checks if platform is mobile or tablet (the check is based on user agent)
-- Updated \`gallery(sel, root)\` to support desktop browsers
-   - Use left and right arrow keys to navigate
-- Added \`loadPages(selTarget, selImages, selPagination)\` method
-   - Requires \`GM_xmlhttpRequest\` permission
-   - Intelligently loads images from paginator pages into current page (assumed to be page 1)
-   - Avoids duplicates (both, duplicate images and duplicate pagination urls)
-   - Parameters:
-      - \`selTarget\` is a selector for the element that contains all images
-      - \`selImages\` is a selector that picks what elements will be included from loaded pages
-      - \`selPagination\` is a selector that selects all paginator links that lead to new pages
-
-## Version 18
-- Added \`Element.show()\` shorthand for \`Element.scrollIntoView({ block: \`end\` })\`
-  `
-  const content = new showdown.Converter().makeHtml(log.trim())
-  const sub = window.open('', 'ChangelogWindow')
-  sub.document.writeln(`<!DOCTYPE html>
-<html>
-<head>
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:ital,wght@0,100..700;1,100..700&family=Roboto:ital,wght@0,100..900;1,100..900&display=swap');
-
-html, body {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  justify-content: center;
-}
-body {
-  font-family: "Roboto", sans-serif;
-  font-size: 16px;
-}
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-  margin: 0;
-}
-#container {
-  width: 66.667vw;
-  height: min-content;
-  padding: 1rem;
-  display: grid;
-  gap: .5rem;
-}
-li {
-  padding-block: .225rem;
-}
-li > ul {
-  padding-left: 1.5rem;
-}
-code {
-  font-family: "Roboto Mono", monospace;
-  font-weight: 600;
-  padding: .15rem .3rem;
-  border-radius: .25rem;
-  background: #eaeaf0;
-}
-.todo {
-  font-family: "Roboto Mono", monospace;
-  font-weight: 700;
-  padding: .15rem .3rem;
-  border-radius: .25rem;
-  background: #d0a0f0;
-  color: #502070;
-}
-.warn {
-  font-family: "Roboto Mono", monospace;
-  font-weight: 800;
-  padding: .15rem .3rem;
-  border-radius: .25rem;
-  background: #f0a0a0;
-  color: #702020;
-}
-</style>
-</head>
-<body>
-<div id="container">
-${content}
-</div>
-</body>
-</html>`)
-}
 
 /*=============== helpers.js ===============*/
 function arr(target, fn) {
@@ -204,6 +33,19 @@ function str(target) {
   if (isnullobj(target))
     return call(Object.prototype.toString, target)
   return call(Object.getPrototypeOf(target).toString, target)
+}
+function equals(a, b) {
+  if (isprim(a) || isprim(b))
+    return a === b
+  if (isfn(a) || isfn(b))
+    return a === b
+
+  const abKeys = [...keys(a), ...keys(b)].unique()
+  for (const key of abKeys) {
+    if (!equals(a[key], b[key]))
+      return false
+  }
+  return true
 }
 function frag(strings, ...rest) {
   const fragment = new DocumentFragment()
@@ -281,22 +123,6 @@ function extend(target, defines) {
 }
 function assign(target, ...args) {
   return Object.assign(target, ...args)
-}
-function wait(ms) {
-  return new Promise(resolve => {
-    setTimeout(() => resolve(), ms)
-  })
-}
-function raw(strings, ...args) {
-  const raw = strings.raw.map(s => s.replaceAll(String.raw`\$`, '$'))
-  return String.raw({ raw }, ...args)
-}
-function regex(flag, ...args) {
-  if (!isstr(flag))
-    return regex('')(flag, ...args)
-  return (strings, ...args) => {
-    return new RegExp(raw(strings, ...args), flag)
-  }
 }
 
 /*=============== type.js ===============*/
@@ -397,8 +223,9 @@ function domInsert(fn, args) {
   
   if (this.isMounted) {
     notMounted.forEach(s => {
-      console.log('%O', s, is(s, EventTarget))
-      s.dispatch('mounted')
+      //console.log('%O', s, is(s, EventTarget))
+      if (s.dispatch)
+        s.dispatch('mounted')
     })
   }
   
@@ -716,6 +543,14 @@ extend(Array.prototype, {
     this.splice(0, this.length)
     return this
   },
+  remove(item) {
+    const index = this.indexOf(item)
+    if (index == -1)
+      return this
+
+    this.splice(index, 1)
+    return this
+  },
   get last() {
     return this[this.length-1]
   },
@@ -852,6 +687,18 @@ extend(Node.prototype, {
 })
 extend(EventTarget.prototype, {
   listeners: new Map(),
+  addEventListener(type, handler, options) {
+    return listen(type, handler, options, 'addEventListener')
+  },
+  removeEventListener(type, handler, options) {
+    for (const data of this.listeners.get(type)) {
+      if (data.handler == handler && equals(data.options, options)) {
+        data.unlisten()
+        this.listeners.set(type, this.listeners.get(type).remove(data))
+        return
+      }
+    }
+  },
   dispatch(type, props = {}) {
     this.dispatchEvent(new (class extends Event {
       constructor() {
@@ -860,16 +707,23 @@ extend(EventTarget.prototype, {
       }
     })())
   },
-  listen(type, handler, options) {
-    const unlisten = () => this.removeEventListener(type, handler, options)
+  listen(type, handler, options, created) {
+    created ??= 'listen'
+    const unlisten = () => this._removeEventListener(type, handler, options)
     this.listeners.set(type, [
       ...(this.listeners.get(type) ?? []),
-      unlisten,
+      {
+        type,
+        unlisten,
+        handler,
+        options,
+        created,
+      },
     ])
     function delegate(e) {
       return handler(define(e, { unlisten }))
     }
-    this.addEventListener(type, delegate, options)
+    this._addEventListener(type, delegate, options)
     return unlisten
   },
   unlisten(type) {
@@ -878,8 +732,9 @@ extend(EventTarget.prototype, {
         this.unlisten(type)
     }
     else {
-      for (const fn of this.listeners.get(type))
-        fn()
+      for (const data of this.listeners.get(type))
+        data.unlisten()
+      this.listeners.set(type, [])
     }
   },
 })
@@ -904,6 +759,40 @@ extend(Image, {
   },
 })
 
+/*=============== events.js ===============*/
+function inlineEvents(target) {
+  return keys(target)
+    .filter(s => s.startsWith('on') && isfn(target[s]))
+    .map(s => {
+      const unlisten = () => target[s] = null
+      const handler = target[s]
+      return {
+        type: s.slice(2),
+        unlisten,
+        handler,
+        options: {},
+        created: 'inline',
+      }
+    })
+}
+function events(type) {
+  const output = [window, ...document.createNodeIterator(document, NodeFilter.SHOW_ALL)]
+    .map(target => {
+      return {
+        target,
+        events: [
+          ...inlineEvents(target),
+          ...arr(target.listeners).map(s => ({ type: s[0], ...s[1] }))
+        ]
+      }
+    })
+    .filter(s => s.events.length > 0)
+  
+  if (type === undefined)
+    return output
+  return output.filter(s => s.events.type == type)
+}
+
 /*=============== monkey.js ===============*/
 function GM_fetch(url, opt = { responseType: 'document' }) {
   return new Promise(resolve => {
@@ -915,12 +804,6 @@ function GM_fetch(url, opt = { responseType: 'document' }) {
       }
     })
   })
-}
-function imp(strings, ...rest) {
-  return String.raw(strings, ...rest)
-    .replaceAll('!important', '')
-    .replaceAll(';', ' !important;')
-    .replaceAll(' !unimportant !important;', ';')
 }
 
 /*=============== other.js ===============*/
@@ -964,7 +847,7 @@ function gallery(sel, root) {
         return images.find(s => s.rect.y >= 1)
       },
       get prev() {
-        return images.find(s => s.rect.y < 0)
+        return images.toReversed().find(s => s.rect.y < 0)
       },
     }
     document.onkeydown = e => {
@@ -1096,7 +979,7 @@ function toast(title, text, duration) {
     elem('style', css),
     elem('#toast',
       title === undefined ? null : elem('.title', title),
-      elem('.text', frag`${text.replaceAll(/'([^']+)'/g, '<code>$1</code>').replaceAll(`''`, `'`)}`),
+      elem('.text', frag`${text.replaceAll(/(?<!')'(?!')([^']+)(?<!')'(?!')/g, '<code>$1</code>').replaceAll(`''`, `'`)}`),
     ),
   )
   body.append(el)
@@ -1107,14 +990,33 @@ function toast(title, text, duration) {
   }
 }
 
+/*=============== tagged-template.js ===============*/
+function imp(strings, ...rest) {
+  return String.raw(strings, ...rest)
+    .replaceAll('!important', '')
+    .replaceAll(';', ' !important;')
+    //.replaceAll(' !unimportant !important;', ';')
+    .replaceAll(/^\/\/.+\n/gm, '')
+}
+function raw(strings, ...args) {
+  const raw = strings.raw.map(s => s.replaceAll(String.raw`\$`, '$'))
+  return String.raw({ raw }, ...args)
+}
+function regex(flag, ...args) {
+  if (!isstr(flag))
+    return regex('')(flag, ...args)
+  return (strings, ...args) => {
+    return new RegExp(raw(strings, ...args), flag)
+  }
+}
+
 /*=============== extend-more.js ===============*/
 extend(globalThis, {
-  info,
-  changelog,
   arr,
   obj,
   has,
   str,
+  equals,
   frag,
   html,
   serialize,
@@ -1126,9 +1028,6 @@ extend(globalThis, {
   define,
   extend,
   assign,
-  wait,
-  raw,
-  regex,
   type,
   is,
   isnull,
@@ -1162,7 +1061,8 @@ extend(globalThis, {
   $aa,
   $$aa,
   openStore,
-  imp,
+  inlineEvents,
+  events,
   loadPages,
   gallery,
   progress,
@@ -1171,4 +1071,7 @@ extend(globalThis, {
   isMobile,
   textnodes,
   toast,
+  imp,
+  raw,
+  regex,
 })
