@@ -6,7 +6,7 @@
 //   - Use smooth scroll to progress beyond images
 //================================================
 define(globalThis, {
-  MONKEY_VERSION: 38
+  MONKEY_VERSION: 39
 })
 
 /*=============== helpers.js ===============*/
@@ -787,7 +787,7 @@ eventNames.forEach(name => {
     get [name]() {
       const events = EventTarget.targets.get(this)
       if (events)
-        return events.Find(s => s.type == type && s.method == 'inline')
+        return events.find(s => s.type == type && s.method == 'inline')
       return null
     },
     set [name](handler) {
