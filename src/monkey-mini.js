@@ -6,7 +6,7 @@
 //   - Use smooth scroll to progress beyond images
 //================================================
 define(globalThis, {
-  MONKEY_VERSION: 34
+  MONKEY_VERSION: 35
 })
 
 /*=============== helpers.js ===============*/
@@ -731,7 +731,7 @@ extend(EventTarget.prototype, {
         this.unlisten(type)
     }
     else {
-      for (const data of this.listeners.get(type))
+      for (const data of (this.listeners.get(type) ?? []))
         data.unlisten()
       this.listeners.set(type, [])
     }
