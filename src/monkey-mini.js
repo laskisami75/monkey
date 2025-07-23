@@ -6,7 +6,7 @@
 //   - Use smooth scroll to progress beyond images
 //================================================
 define(globalThis, {
-  MONKEY_VERSION: 36
+  MONKEY_VERSION: 37
 })
 
 /*=============== helpers.js ===============*/
@@ -32,6 +32,11 @@ function str(target) {
   if (isnullobj(target))
     return call(Object.prototype.toString, target)
   return call(Object.getPrototypeOf(target).toString, target)
+}
+function range(a, b) {
+  if (b === undefined)
+    return range(0, a)
+  return arr({ length: b - a }, (_, i) => a + i)
 }
 function equals(a, b) {
   if (isprim(a) || isprim(b))
@@ -829,9 +834,9 @@ function GM_fetch(url, opt = { responseType: 'document' }) {
 }
 
 /*=============== other.js ===============*/
-async function loadPages(selTarget, selImages, selPagination) {
+async function loadPages(selTarget, selImages, selPagination, fnUrl, fnNum) {
   const target = $(selTarget)
-  const urls = $$(selPagination).map(s => s.href).unique()
+  const urls = fnUrl === undefined || fnNum === undefined ? $$(selPagination).map(s => s.href).unique() : range(2, fnNum($(selPagination).href)).map(fnUrl)
   const count = $$(selImages).length
   function isNewImage(el) {
     return !$$(selImages).map(s => s.dataset?.src ?? s.src).includes(el.dataset?.src ?? el.src)
@@ -1044,6 +1049,7 @@ extend(globalThis, {
   has,
   str,
   equals,
+  range,
   frag,
   html,
   serialize,
