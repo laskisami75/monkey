@@ -7,7 +7,7 @@
 //   - Use smooth scroll to progress beyond images
 //================================================
 define(globalThis, {
-  MONKEY_VERSION: 31
+  MONKEY_VERSION: 32
 })
 
 /*=============== helpers.js ===============*/
@@ -762,7 +762,7 @@ extend(Image, {
 /*=============== events.js ===============*/
 function inlineEvents(target) {
   return keys(target)
-    .filter(s => s.startsWith('on') && isfn(target[s]))
+    .filter(s => isstr(s) & s.startsWith('on') && isfn(target[s]))
     .map(s => {
       const unlisten = () => target[s] = null
       const handler = target[s]
