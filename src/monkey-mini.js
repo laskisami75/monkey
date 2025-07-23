@@ -6,7 +6,7 @@
 //   - Use smooth scroll to progress beyond images
 //================================================
 define(globalThis, {
-  MONKEY_VERSION: 39
+  MONKEY_VERSION: 40
 })
 
 /*=============== helpers.js ===============*/
@@ -103,6 +103,7 @@ function desc(target, key) {
   return assign({ key }, Object.getOwnPropertyDescriptor(target, key))
 }
 function define(target, defines) {
+  console.log('target', target, 'defines', defines)
   if (list(Object.getOwnPropertyDescriptors(defines)).every(s => isdesc(s.value)))
     return Object.defineProperties(target, defines)
   return Object.defineProperties(target, Object.getOwnPropertyDescriptors(defines))
@@ -227,7 +228,14 @@ function selector(sel = '') {
 function domInsert(fn, args) {
   args = args.filter(s => s).map(s => isstr(s) ? new Text(s) : s)
   
-  const notMounted = args.flatMap(s => !s.isMounted ? s.recurseChildren() : [])
+  //const notMounted = args.flatMap(s => !s.isMounted ? s.recurseChildren() : [])
+  const notMounted = args.flatMap(s => {
+    if (!s.isMounted) {
+      console.log('s', s, 's.recurseChildren', s.recurseChildren)
+      return s.recurseChildren()
+    }
+    return []
+  })
   call(fn, this, ...args)
   
   if (this.isMounted) {
@@ -791,8 +799,6 @@ eventNames.forEach(name => {
       return null
     },
     set [name](handler) {
-      console.log('this', this)
-
       const eventsBefore = EventTarget.targets.get(this)
       if (eventsBefore) {
         const event = eventsBefore.find(s => s.type == type && s.method == 'inline')
