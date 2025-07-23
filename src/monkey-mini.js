@@ -6,7 +6,7 @@
 //   - Use smooth scroll to progress beyond images
 //================================================
 define(globalThis, {
-  MONKEY_VERSION: 33
+  MONKEY_VERSION: 34
 })
 
 /*=============== helpers.js ===============*/
@@ -761,7 +761,7 @@ extend(Image, {
 /*=============== events.js ===============*/
 function inlineEvents(target) {
   return keys(target)
-    .filter(s => isstr(s) & s.startsWith('on') && isfn(target[s]))
+    .filter(s => isstr(s) && s.startsWith('on') && isfn(target[s]))
     .map(s => {
       const unlisten = () => target[s] = null
       const handler = target[s]
@@ -984,12 +984,13 @@ function toast(title, text, duration) {
     ),
   )
   body.append(el)
-  el.animate([{ translate: '0 100%' }, { translate: '0 0' }], { duration: 200, iterations: 1 })
-  setTimeout(() => el.animate([{ translate: '0 0' }, { translate: '0 100%' }], { duration: 200, iterations: 1 }), duration - 200)
+  el.animate([{ translate: '0 100%' }, { translate: '0 0' }], { duration: 150, iterations: 1 })
+  setTimeout(() => el.animate([{ translate: '0 0' }, { translate: '0 100%' }], { duration: 150, iterations: 1 }), duration - 150)
   setTimeout(() => el.remove(), duration)
 
   el.onclick = e => {
-    el.remove()
+    el.animate([{ translate: '0 0' }, { translate: '0 100%' }], { duration: 150, iterations: 1 })
+    setTimeout(() => el.remove(), 150)
   }
 }
 
