@@ -6,7 +6,7 @@
 //   - Use smooth scroll to progress beyond images
 //================================================
 define(globalThis, {
-  MONKEY_VERSION: 40
+  MONKEY_VERSION: 41
 })
 
 /*=============== helpers.js ===============*/
@@ -104,6 +104,8 @@ function desc(target, key) {
 }
 function define(target, defines) {
   console.log('target', target, 'defines', defines)
+  if (defines === undefined)
+    return target
   if (list(Object.getOwnPropertyDescriptors(defines)).every(s => isdesc(s.value)))
     return Object.defineProperties(target, defines)
   return Object.defineProperties(target, Object.getOwnPropertyDescriptors(defines))
