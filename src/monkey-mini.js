@@ -1,13 +1,12 @@
 
 //===================== TODO =====================
-// - Add animation to toast enter/leave
 // - loadPages
 //   - Add option to parse max page link + link format (solves cases where the full pagination isn't shown)
 // - gallery
 //   - Use smooth scroll to progress beyond images
 //================================================
 define(globalThis, {
-  MONKEY_VERSION: 32
+  MONKEY_VERSION: 33
 })
 
 /*=============== helpers.js ===============*/
@@ -939,9 +938,11 @@ function* textnodes() {
 /*=============== ui.js ===============*/
 function toast(title, text, duration) {
   if (text === undefined)
-    [title, text, duration] = [undefined, title, 4000]
+    [title, text] = [undefined, title]
   else if (isnum(text))
     [title, text, duration] = [undefined, title, text]
+  if (duration === undefined)
+    duration = 4000
 
   const css = imp`
 #monkey {
@@ -983,7 +984,9 @@ function toast(title, text, duration) {
     ),
   )
   body.append(el)
-  setTimeout(() => el.remove(), duration ?? 4000)
+  el.animate([{ translate: '0 100%' }, { translate: '0 0' }], { duration: 200, iterations: 1 })
+  setTimeout(() => el.animate([{ translate: '0 0' }, { translate: '0 100%' }], { duration: 200, iterations: 1 }), duration - 200)
+  setTimeout(() => el.remove(), duration)
 
   el.onclick = e => {
     el.remove()
