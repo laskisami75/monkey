@@ -6,7 +6,7 @@
 //   - Use smooth scroll to progress beyond images
 //================================================
 define(globalThis, {
-  MONKEY_VERSION: 41
+  MONKEY_VERSION: 42
 })
 
 /*=============== helpers.js ===============*/
@@ -103,7 +103,6 @@ function desc(target, key) {
   return assign({ key }, Object.getOwnPropertyDescriptor(target, key))
 }
 function define(target, defines) {
-  console.log('target', target, 'defines', defines)
   if (defines === undefined)
     return target
   if (list(Object.getOwnPropertyDescriptors(defines)).every(s => isdesc(s.value)))
@@ -563,16 +562,20 @@ extend(Array.prototype, {
     return this
   },
   remove(items) {
-    if (isarr(items)) {
+    if (isfn(items)) {
+      for (const item of this.filter(items))
+        this.remove(item)
+      return this
+    }
+    else if (isarr(items)) {
       for (const item of items)
         this.remove(item)
+      return this
     }
     else {
       const index = this.indexOf(items)
-      if (index == -1)
-        return this
-
-      this.splice(index, 1)
+      if (index != -1)
+        this.splice(index, 1)
       return this
     }
   },
@@ -885,12 +888,12 @@ function gallery(sel, root) {
         return images.toReversed().find(s => s.rect.y < 0)
       },
     }
-    document.onkeydown = e => {
+    window.addEventListener('keydown', e => {
       if (e.key == 'ArrowRight')
         image.next?.show()
       else if (e.key == 'ArrowLeft')
         image.prev?.show()
-    }
+    }, { capture: true })
   }
 }
 function progress() {
@@ -1031,8 +1034,8 @@ function toast(title, text, duration) {
 }
 
 /*=============== tagged-template.js ===============*/
-function imp(strings, ...rest) {
-  return String.raw(strings, ...rest)
+function imp(strings, ...args) {
+  return String.raw(strings, ...args)
     .replaceAll('!important', '')
     .replaceAll(';', ' !important;')
     //.replaceAll(' !unimportant !important;', ';')
