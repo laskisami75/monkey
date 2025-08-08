@@ -6,7 +6,7 @@
 //   - Use smooth scroll to progress beyond images
 //================================================
 define(globalThis, {
-  MONKEY_VERSION: 47
+  MONKEY_VERSION: 48
 })
 
 /*=============== helpers.js ===============*/
@@ -969,7 +969,7 @@ function GM_fetch(url, opt = { responseType: 'document' }) {
 }
 
 /*=============== other.js ===============*/
-async function loadPages(selTarget, selImages, selPagination, fnUrl, fnNum, checkNewImages = false) {
+async function loadPages(selTarget, selImages, selPagination, fnMove, fnUrl, fnNum, checkNewImages = false) {
   if (fnUrl === undefined || fnNum === undefined)
     urls = $$(selPagination).map(s => s.href).unique()
   else
@@ -980,22 +980,16 @@ async function loadPages(selTarget, selImages, selPagination, fnUrl, fnNum, chec
   const count = $$(selImages).length
   function isNewImage(el) {
     const existing = $$(selImages).map(s => s.dataset?.src ?? s.src)
-    console.log('existing', existing, 'checking', el, 'result', !existing.includes(el.dataset?.src ?? el.src))
     return !existing.includes(el.dataset?.src ?? el.src)
   }
   for (const url of urls) {
     const dom = await GM_fetch(url)
-    const allImages = $$(selImages, dom)
-    if (checkNewImages) {
-      const newImages = allImages.filter(isNewImage)
-      console.log(`Loading ${newImages.length}/${allImages.length} images from ${url}`)
-      target.append(...newImages)
-    }
-    else {
-      target.append(...allImages)
-    }
+    let newImages = $$(selImages, dom)
+      .filter(el => !checkNewImages || isNewImage(el))
+      .map(el => fnMove ? fnMove(el) : el)
+    
+    target.append(...newImages)
   }
-  //console.log(`${urls.length} pages, ${count} => ${$$(selImages).length} images`)
   toast('Loading complete', `${urls.length} pages, ${count} => ${$$(selImages).length} images`)
   gallery(selImages)
   progress()
@@ -1025,23 +1019,29 @@ function gallery(sel, root, forceStopOtherHandlers = false) {
       get prev() {
         return images.toReversed().find(s => s.rect.y < 0)
       },
+      get isAbove() {
+        return images[0].rect.y > innerHeight
+      },
+      get isBelow() {
+        return images.last.rect.y < 0
+      },
     }
 
     if (forceStopOtherHandlers)
       events('keydown').forEach(s => s.unlisten())
 
     window.addEventListener('keydown', e => {
-      if (e.key == 'ArrowRight') {
-        if (image.next)
-          image.next.instantScroll()
-        else if (images.last.y >= 0 && images.last.y < 1)
+      if (image.isAbove || image.isBelow) {
+        if (e.key == 'ArrowRight')
           images.last.animScroll(0, 500, 250)
-      }
-      else if (e.key == 'ArrowLeft') {
-        if (image.prev)
-          image.prev.instantScroll()
-        else if (images[0].y >= 0 && images[0].y < 1)
+        else if (e.key == 'ArrowLeft')
           images[0].animScroll(0, -500, 250)
+      }
+      else {
+        if (e.key == 'ArrowRight')
+          image.next?.instantScroll()
+        else if (e.key == 'ArrowLeft')
+          image.prev?.instantScroll()
       }
     }, { capture: true })
   }
