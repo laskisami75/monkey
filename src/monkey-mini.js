@@ -6,7 +6,7 @@
 //   - Use smooth scroll to progress beyond images
 //================================================
 define(globalThis, {
-  MONKEY_VERSION: 44
+  MONKEY_VERSION: 45
 })
 
 /*=============== helpers.js ===============*/
@@ -708,8 +708,8 @@ extend(Element.prototype, {
   },
   animScroll(x, y, duration) {
     let startTime
-    const distanceX = x + el.rect.x
-    const distanceY = y + el.rect.y
+    const distanceX = x + this.rect.x
+    const distanceY = y + this.rect.y
     const originX = document.scrollingElement.scrollLeft
     const originY = document.scrollingElement.scrollTop
     const targetX = document.scrollingElement.scrollLeft + distanceX
@@ -956,6 +956,7 @@ function events(type) {
 
 /*=============== monkey.js ===============*/
 function GM_fetch(url, opt = { responseType: 'document' }) {
+  console.log(`[GM_fetch] Loading ${url}`)
   return new Promise(resolve => {
     GM_xmlhttpRequest({
       ...opt,
@@ -971,6 +972,7 @@ function GM_fetch(url, opt = { responseType: 'document' }) {
 async function loadPages(selTarget, selImages, selPagination, fnUrl, fnNum) {
   const target = $(selTarget)
   const urls = fnUrl === undefined || fnNum === undefined ? $$(selPagination).map(s => s.href).unique() : range(1, fnNum()).map(fnUrl).slice(1)
+  console.log('urls', urls)
   const count = $$(selImages).length
   function isNewImage(el) {
     return !$$(selImages).map(s => s.dataset?.src ?? s.src).includes(el.dataset?.src ?? el.src)
@@ -1135,6 +1137,10 @@ async function analyze() {
       })
   })
   return interest
+}
+function logImportant(...args) {
+  const style = `font-size: 1.5rem; font-weight: 700; color: #0c8346; background: #84dcc6;`
+  console.log(`%c${args.map(s => s.toString()).join(' ')}`, style)
 }
 
 /*=============== ui.js ===============*/
