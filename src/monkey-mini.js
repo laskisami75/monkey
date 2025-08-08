@@ -6,7 +6,7 @@
 //   - Use smooth scroll to progress beyond images
 //================================================
 define(globalThis, {
-  MONKEY_VERSION: 42
+  MONKEY_VERSION: 43
 })
 
 /*=============== helpers.js ===============*/
@@ -136,6 +136,27 @@ function assign(target, ...args) {
   return Object.assign(target, ...args)
 }
 
+/*=============== time.js ===============*/
+function time() {
+  return new Date().toLocaleTimeString('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    fractionalSecondDigits: 3,
+  })
+}
+function passed(since) {
+  function fmt(value, digits = 2) {
+    return value.toString().padStart(digits, '0')
+  }
+  let diff = Date.now() - since
+  let hh = (diff / 3600000 | 0)
+  let mm = (diff / 60000   | 0) % 60
+  let ss = (diff / 1000    | 0) % 60
+  let ms = (diff / 1       | 0) % 1000
+  return `${fmt(hh)}:${fmt(mm)}:${fmt(ss)},${fmt(ms, 3)}`
+}
+
 /*=============== type.js ===============*/
 const Generator = function*(){}.constructor.prototype
 
@@ -230,22 +251,14 @@ function domInsert(fn, args) {
   args = args.filter(s => s).map(s => isstr(s) ? new Text(s) : s)
   
   //const notMounted = args.flatMap(s => !s.isMounted ? s.recurseChildren() : [])
-  const notMounted = args.flatMap(s => {
-    if (!s.isMounted) {
-      console.log('s', s, 's.recurseChildren', s.recurseChildren)
-      return s.recurseChildren()
-    }
-    return []
-  })
   call(fn, this, ...args)
   
-  if (this.isMounted) {
+  /*if (this.isMounted) {
     notMounted.forEach(s => {
-      //console.log('%O', s, is(s, EventTarget))
       if (s.dispatch)
         s.dispatch('mounted')
     })
-  }
+  }*/
   
   return define(this, {
     get ids() {
@@ -519,6 +532,47 @@ extend(String.prototype, {
   dehyphenate() {
     return this.replaceAll(/-[^-]/g, m => m.slice(1).toUpperCase())
   },
+  prevIndex(re, start) {
+    if (start === undefined)
+      start = this.length
+    if (isstr(re))
+      re = regex('g')`${RegExp.escape(re)}`
+
+    const array = arr(this.slice(0, start).matchAll(re))
+    if (array.length == 0)
+      return -1
+    return array.last.index
+  },
+  nextIndex(re, start) {
+    if (start === undefined)
+      start = 0
+    if (isstr(re))
+      re = regex('g')`${RegExp.escape(re)}`
+    
+    const array = arr(this.slice(0, start).matchAll(re))
+    if (array.length == 0)
+      return -1
+    return array[0].index
+  },
+  matchLines(re) {
+    return arr(this.matchAll(re)).map(s => {
+      const startIndex = this.prevIndex('\n', s.index + s[0].length) + 1
+      const endIndex = this.nextIndex('\n', s.index)
+      return {
+        startIndex,
+        endIndex,
+        text: this.slice(startIndex, endIndex),
+      }
+    })
+  },
+  nthLine(index) {
+    let line = 1
+    for (let i = 0; i < index; i++) {
+      if (this[i] == '\n')
+        line++
+    }
+    return line
+  },
 })
 extend(Array.prototype, {
   unique(fn = s => s) {
@@ -561,6 +615,16 @@ extend(Array.prototype, {
     this.splice(0, this.length)
     return this
   },
+  while(fn = s => s) {
+    const output = []
+    for (let i = 0; i < this.length; i++) {
+      if (!fn(this[i], i, this))
+        return output
+
+      output.push(this[i])
+    }
+    return output
+  },
   remove(items) {
     if (isfn(items)) {
       for (const item of this.filter(items))
@@ -594,6 +658,9 @@ extend(Iterator.prototype, {
 extend(Window.prototype, {
   get doc() {
     return this.document
+  },
+  get scr() {
+    return this.document.scrollingElement
   },
   get docElem() {
     return this.document.documentElement
@@ -636,8 +703,37 @@ extend(Element.prototype, {
   get next() {
     return this.nextElementSibling
   },
-  show() {
+  instantScroll() {
     this.scrollIntoView({ behavior: 'instant', block: 'end' })
+  },
+  animScroll(x, y, duration) {
+    let startTime
+    const distanceX = x + el.rect.x
+    const distanceY = y + el.rect.y
+    const originX = document.scrollingElement.scrollLeft
+    const originY = document.scrollingElement.scrollTop
+    const targetX = document.scrollingElement.scrollLeft + distanceX
+    const targetY = document.scrollingElement.scrollTop + distanceY
+    const rightward = originX < targetX
+    const downward = originY < targetY
+    function step(currentTime) {
+      startTime ??= currentTime
+
+      const elapsed = currentTime - startTime
+      let currentX = originX + (targetX - originX) / duration * elapsed
+      let currentY = originY + (targetY - originY) / duration * elapsed
+      if ((rightward && currentX > targetX) || (!rightward && targetX > currentX))
+        currentX = targetX
+      if ((downward && currentY > targetY) || (!downward && targetY > currentY))
+        currentY = targetY
+      //console.log('origin', origin, 'target', target, 'current', current)
+      document.scrollingElement.scrollLeft = currentX
+      document.scrollingElement.scrollTop = currentY
+
+      if (currentX != targetX || currentY != targetY)
+        requestAnimationFrame(step)
+    }
+    requestAnimationFrame(step)
   },
   append(...args) {
     return call(domInsert, this, this._append, args)
@@ -693,7 +789,7 @@ extend(Node.prototype, {
   get parent() {
     return this.parentElement
   },
-  get isMounted() {
+  /*get isMounted() {
     let node = this
     while (node.parentNode)
       node = node.parentNode
@@ -711,7 +807,7 @@ extend(Node.prototype, {
     }
     traverse(this)
     return output
-  },
+  },*/
 })
 extend(NodeIterator.prototype, {
   *[Symbol.iterator]() {
@@ -739,7 +835,16 @@ extend(EventTarget, {
 extend(EventTarget.prototype, {
   addEventListener(type, handler, options) {
     const events = EventTarget.targets.get(this) ?? EventTarget.targets.set(this, []).get(this)
-    events.push({ type, handler, options, method: 'add' })
+    const target = this
+    events.push({
+      type,
+      handler,
+      options,
+      method: 'add',
+      unlisten() {
+        target._removeEventListener(this.type, this.handler, this.options)
+      },
+    })
 
     this._addEventListener(type, handler, options)
   },
@@ -768,7 +873,16 @@ extend(EventTarget.prototype, {
     }
 
     const events = EventTarget.targets.get(this) ?? EventTarget.targets.set(this, []).get(this)
-    events.push({ type, handler: delegate, options, method: 'listen' })
+    const target = this
+    events.push({
+      type,
+      handler: delegate,
+      options,
+      method: 'listen',
+      unlisten() {
+        target._removeEventListener(this.type, this.handler, this.options)
+      },
+    })
 
     this._addEventListener(type, delegate, options)
   },
@@ -813,7 +927,16 @@ eventNames.forEach(name => {
 
       if (handler) {
         const events = EventTarget.targets.get(this) ?? []
-        events.push({ type, handler, options: undefined, method: 'inline' })
+        const target = this
+        events.push({
+          type,
+          handler,
+          options: undefined,
+          method: 'inline',
+          unlisten() {
+            target._removeEventListener(this.type, this.handler, this.options)
+          },
+        })
         EventTarget.targets.set(this, events)
 
         this._addEventListener(type, handler)
@@ -847,7 +970,7 @@ function GM_fetch(url, opt = { responseType: 'document' }) {
 /*=============== other.js ===============*/
 async function loadPages(selTarget, selImages, selPagination, fnUrl, fnNum) {
   const target = $(selTarget)
-  const urls = fnUrl === undefined || fnNum === undefined ? $$(selPagination).map(s => s.href).unique() : range(2, fnNum($(selPagination).href)).map(fnUrl)
+  const urls = fnUrl === undefined || fnNum === undefined ? $$(selPagination).map(s => s.href).unique() : range(1, fnNum()).map(fnUrl).slice(1)
   const count = $$(selImages).length
   function isNewImage(el) {
     return !$$(selImages).map(s => s.dataset?.src ?? s.src).includes(el.dataset?.src ?? el.src)
@@ -862,17 +985,17 @@ async function loadPages(selTarget, selImages, selPagination, fnUrl, fnNum) {
   gallery(selImages)
   progress()
 }
-function gallery(sel, root) {
+function gallery(sel, root, forceStopOtherHandlers = false) {
   const images = $$(sel, root ?? document)
   if (isMobile()) {
     images.forEach((el, i) => {
       el.onclick = e => {
         if (images[0].rect.y > 0)
-          images[0].show()
+          images[0].instantScroll()
         else if (e.y < innerHeight * .7)
-          images[i-1]?.show()
+          images[i-1]?.instantScroll()
         else
-          images[i+1]?.show()
+          images[i+1]?.instantScroll()
       }
     })
   }
@@ -888,11 +1011,15 @@ function gallery(sel, root) {
         return images.toReversed().find(s => s.rect.y < 0)
       },
     }
+
+    if (forceStopOtherHandlers)
+      events('keydown').forEach(s => s.unlisten())
+
     window.addEventListener('keydown', e => {
       if (e.key == 'ArrowRight')
-        image.next?.show()
+        image.next?.instantScroll()
       else if (e.key == 'ArrowLeft')
-        image.prev?.show()
+        image.prev?.instantScroll()
     }, { capture: true })
   }
 }
@@ -972,6 +1099,34 @@ function* textnodes() {
       yield node
     node = it.nextNode()
   }
+}
+
+/*=============== debug.js ===============*/
+async function scripts(root) {
+  return await arr($$('script', root ?? document).map(async (s, i) => {
+    const code = s.src == '' ? s.innerHTML : await GM_fetch(s.src, { responseType: 'text' })
+    return {
+      code,
+      elem: s,
+      index: i,
+    }
+  }))
+}
+async function analyze() {
+  const sources = await scripts()
+  const interest = sources.flatMap(s => {
+    return s.code.matchLines(/\baddEventListener\(|\bonkeydown\b/g)
+      .map(line => {
+        return {
+          line: line.text,
+          lineNumber: s.code.nthLine(line.startIndex),
+          code: s.code,
+          elem: s.elem,
+          index: s.index,
+        }
+      })
+  })
+  return interest
 }
 
 /*=============== ui.js ===============*/
@@ -1072,6 +1227,8 @@ extend(globalThis, {
   define,
   undefine,
   extend,
+  time,
+  passed,
   assign,
   type,
   is,
