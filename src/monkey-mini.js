@@ -6,7 +6,7 @@
 //   - Use smooth scroll to progress beyond images
 //================================================
 define(globalThis, {
-  MONKEY_VERSION: 48
+  MONKEY_VERSION: 49
 })
 
 /*=============== helpers.js ===============*/
@@ -671,6 +671,33 @@ extend(Window.prototype, {
   get body() {
     return this.document.body
   },
+  animScroll(x, y, duration) {
+    let startTime
+    const originX = document.scrollingElement.scrollLeft
+    const originY = document.scrollingElement.scrollTop
+    const targetX = document.scrollingElement.scrollLeft + x
+    const targetY = document.scrollingElement.scrollTop + y
+    const rightward = originX < targetX
+    const downward = originY < targetY
+    function step(currentTime) {
+      startTime ??= currentTime
+
+      const elapsed = currentTime - startTime
+      let currentX = originX + (targetX - originX) / duration * elapsed
+      let currentY = originY + (targetY - originY) / duration * elapsed
+      if ((rightward && currentX > targetX) || (!rightward && targetX > currentX))
+        currentX = targetX
+      if ((downward && currentY > targetY) || (!downward && targetY > currentY))
+        currentY = targetY
+      //console.log('origin', origin, 'target', target, 'current', current)
+      document.scrollingElement.scrollLeft = currentX
+      document.scrollingElement.scrollTop = currentY
+
+      if (currentX != targetX || currentY != targetY)
+        requestAnimationFrame(step)
+    }
+    requestAnimationFrame(step)
+  },
 })
 extend(Document.prototype, {
   append(...args) {
@@ -1023,7 +1050,7 @@ function gallery(sel, root, forceStopOtherHandlers = false) {
         return images[0].rect.y > innerHeight
       },
       get isBelow() {
-        return images.last.rect.y < 0
+        return images.last.rect.y <= 0
       },
     }
 
