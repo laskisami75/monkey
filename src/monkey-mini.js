@@ -6,7 +6,7 @@
 //   - Use smooth scroll to progress beyond images
 //================================================
 define(globalThis, {
-  MONKEY_VERSION: 46
+  MONKEY_VERSION: 47
 })
 
 /*=============== helpers.js ===============*/
@@ -969,7 +969,7 @@ function GM_fetch(url, opt = { responseType: 'document' }) {
 }
 
 /*=============== other.js ===============*/
-async function loadPages(selTarget, selImages, selPagination, fnUrl, fnNum) {
+async function loadPages(selTarget, selImages, selPagination, fnUrl, fnNum, checkNewImages = false) {
   if (fnUrl === undefined || fnNum === undefined)
     urls = $$(selPagination).map(s => s.href).unique()
   else
@@ -979,14 +979,21 @@ async function loadPages(selTarget, selImages, selPagination, fnUrl, fnNum) {
   const target = $(selTarget)
   const count = $$(selImages).length
   function isNewImage(el) {
-    return !$$(selImages).map(s => s.dataset?.src ?? s.src).includes(el.dataset?.src ?? el.src)
+    const existing = $$(selImages).map(s => s.dataset?.src ?? s.src)
+    console.log('existing', existing, 'checking', el, 'result', !existing.includes(el.dataset?.src ?? el.src))
+    return !existing.includes(el.dataset?.src ?? el.src)
   }
   for (const url of urls) {
     const dom = await GM_fetch(url)
     const allImages = $$(selImages, dom)
-    const newImages = allImages.filter(isNewImage)
-    console.log(`Loading ${newImages.length}/${allImages.length} images from ${url}`)
-    target.append(...newImages)
+    if (checkNewImages) {
+      const newImages = allImages.filter(isNewImage)
+      console.log(`Loading ${newImages.length}/${allImages.length} images from ${url}`)
+      target.append(...newImages)
+    }
+    else {
+      target.append(...allImages)
+    }
   }
   //console.log(`${urls.length} pages, ${count} => ${$$(selImages).length} images`)
   toast('Loading complete', `${urls.length} pages, ${count} => ${$$(selImages).length} images`)
