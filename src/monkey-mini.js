@@ -1,12 +1,8 @@
 
 //===================== TODO =====================
-// - loadPages
-//   - Add option to parse max page link + link format (solves cases where the full pagination isn't shown)
-// - gallery
-//   - Use smooth scroll to progress beyond images
 //================================================
 define(globalThis, {
-  MONKEY_VERSION: 52
+  MONKEY_VERSION: 53
 })
 
 /*=============== helpers.js ===============*/
@@ -977,7 +973,13 @@ function events(type) {
     .filter(s => {
       if (isstr(type))
         return s.type == type
-      return s.handler == type
+      if (isfn(type))
+        return s.handler == type
+      if (isobj(type))
+        return equals(s.options, type)
+      if (is(type, Element))
+        return s.element == type
+      return true
     })
 }
 
@@ -1047,7 +1049,7 @@ function gallery(sel, root, forceStopOtherHandlers = false) {
         return images.toReversed().find(s => s.rect.y < 0)
       },
       get isAbove() {
-        return images[0].rect.y > innerHeight
+        return images[0].rect.y >= 0
       },
       get isBelow() {
         return images.last.rect.y <= 0
@@ -1058,22 +1060,20 @@ function gallery(sel, root, forceStopOtherHandlers = false) {
       events('keydown').forEach(s => s.unlisten())
 
     window.addEventListener('keydown', e => {
-      /*if (image.isAbove || image.isBelow) {
-        if (e.key == 'ArrowRight')
+      if (e.key == 'ArrowRight') {
+        console.log('current', images.indexOf(image.current), 'next', images.indexOf(image.next))
+        if (image.isBelow)
           animScroll(0, 500, 250)
-        else if (e.key == 'ArrowLeft')
-          animScroll(0, -500, 250)
-      }
-      else {
-        if (e.key == 'ArrowRight')
+        else
           image.next?.instantScroll()
-        else if (e.key == 'ArrowLeft')
+      }
+      else if (e.key == 'ArrowLeft') {
+        console.log('current', images.indexOf(image.current), 'prev', images.indexOf(image.prev))
+        if (image.isAbove)
+          animScroll(0, -500, 250)
+        else
           image.prev?.instantScroll()
-      }/**/
-      if (e.key == 'ArrowRight')
-        image.next?.instantScroll()
-      else if (e.key == 'ArrowLeft')
-        image.prev?.instantScroll()
+      }
     }, { capture: true })
   }
 }
