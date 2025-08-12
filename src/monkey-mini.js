@@ -6,7 +6,7 @@
 //   - Use smooth scroll to progress beyond images
 //================================================
 define(globalThis, {
-  MONKEY_VERSION: 50
+  MONKEY_VERSION: 51
 })
 
 /*=============== helpers.js ===============*/
@@ -1130,9 +1130,7 @@ function stopExecute(sel) {
 //   'Inter'
 function font(name) {
   const css = `@import url('https://fonts.googleapis.com/css2?family=${name.replaceAll(' ', '+')}:wght@100..900&display=swap');
-  body {
-    font-family: "${name}", sans-serif;
-  }
+  body { font-family: "${name}", sans-serif; }
   `
   head.append(elem('style', css))
 }
@@ -1192,7 +1190,7 @@ function toast(title, text, duration) {
   if (duration === undefined)
     duration = 4000
 
-  const css = imp`
+  const css = `
 #monkey {
   width: 100%;
   position: fixed;
@@ -1206,6 +1204,7 @@ function toast(title, text, duration) {
   max-width: 66.667vw;
   display: grid;
   padding: .5rem 1rem;
+  color: #e0e0e0;
   background: #10191c;
   border-radius: .5rem;
   border: 2px solid #1a2326;
@@ -1214,16 +1213,20 @@ function toast(title, text, duration) {
 }
 #monkey #toast .title {
   text-transform: uppercase;
-  font-size: .725rem;
+  font-size: .85rem;
   font-weight: 700;
   line-height: 1.1667;
 }
 #monkey #toast .text {
-  font-size: 1rem;
+  font-size: 1.1rem;
   font-weight: 400;
   line-height: 1.3333;
 }
   `
+  const shadowContainer = elem('#shadow-container')
+  body.append(shadowContainer)
+
+  const shadow = shadowContainer.attachShadow({ mode: 'open' })
   const el = elem('#monkey',
     elem('style', css),
     elem('#toast',
@@ -1231,7 +1234,8 @@ function toast(title, text, duration) {
       elem('.text', frag`${text.replaceAll(/(?<!')'(?!')([^']+)(?<!')'(?!')/g, '<code>$1</code>').replaceAll(`''`, `'`)}`),
     ),
   )
-  body.append(el)
+  shadow.append(el)
+
   el.animate([{ translate: '0 100%' }, { translate: '0 0' }], { duration: 150, iterations: 1 })
   setTimeout(() => el.animate([{ translate: '0 0' }, { translate: '0 100%' }], { duration: 150, iterations: 1 }), duration - 150)
   setTimeout(() => el.remove(), duration)
