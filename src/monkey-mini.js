@@ -6,7 +6,7 @@
 //   - Use smooth scroll to progress beyond images
 //================================================
 define(globalThis, {
-  MONKEY_VERSION: 51
+  MONKEY_VERSION: 52
 })
 
 /*=============== helpers.js ===============*/
@@ -1058,7 +1058,7 @@ function gallery(sel, root, forceStopOtherHandlers = false) {
       events('keydown').forEach(s => s.unlisten())
 
     window.addEventListener('keydown', e => {
-      if (image.isAbove || image.isBelow) {
+      /*if (image.isAbove || image.isBelow) {
         if (e.key == 'ArrowRight')
           animScroll(0, 500, 250)
         else if (e.key == 'ArrowLeft')
@@ -1069,7 +1069,11 @@ function gallery(sel, root, forceStopOtherHandlers = false) {
           image.next?.instantScroll()
         else if (e.key == 'ArrowLeft')
           image.prev?.instantScroll()
-      }
+      }/**/
+      if (e.key == 'ArrowRight')
+        image.next?.instantScroll()
+      else if (e.key == 'ArrowLeft')
+        image.prev?.instantScroll()
     }, { capture: true })
   }
 }
