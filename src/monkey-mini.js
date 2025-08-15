@@ -2,15 +2,18 @@
 //===================== TODO =====================
 //================================================
 define(globalThis, {
-  MONKEY_VERSION: 53
+  MONKEY_VERSION: 54
 })
 
 /*=============== helpers.js ===============*/
 function arr(target, fn) {
   const array = Array.from(target, fn)
-  if (!array.some(s => isobj(s) && is(s, Promise)))
-    return array
-  return Array.fromAsync(target, fn)
+  if (array.some(s => s instanceof Promise))
+    return Array.fromAsync(target, fn)
+  return array
+}
+function ent(target) {
+  return keys(target).map(key => [key, target[key]])
 }
 function obj(entries, value) {
   if (value === undefined)
@@ -34,15 +37,13 @@ function range(a, b) {
     return range(0, a)
   return arr({ length: b - a }, (_, i) => a + i)
 }
-function equals(a, b) {
-  if (isprim(a) || isprim(b))
-    return a === b
-  if (isfn(a) || isfn(b))
+function equal(a, b) {
+  if (isprim(a) || isprim(b) || isfn(a) || isfn(b))
     return a === b
 
   const abKeys = [...keys(a), ...keys(b)].unique()
   for (const key of abKeys) {
-    if (!equals(a[key], b[key]))
+    if (!equal(a[key], b[key]))
       return false
   }
   return true
@@ -155,6 +156,8 @@ function passed(since) {
 
 /*=============== type.js ===============*/
 const Generator = function*(){}.constructor.prototype
+const AsyncGenerator = async function*(){}.constructor.prototype
+const AsyncFunction = async function(){}.constructor
 
 function type(s) {
   if (s === null)
@@ -165,53 +168,58 @@ function type(s) {
     return 'array'
   if (isiter(s))
     return 'iterator'
+  if (isstr(s))
+    return 'string'
+  if (isnum(s))
+    return 'number'
+  if (isbool(s))
+    return 'boolean'
   return typeof s
 }
 function is(s, t) {
-  if (s === null)
-    return false
-  if (typeof s == 'object')
-    return s instanceof t
-  if (t == String)
-    return isstr(s)
-  if (t == Number)
-    return isnum(s)
-  if (t == Boolean)
-    return isbool(s)
-  if (t == Symbol)
-    return issym(s)
-  if (t == Function)
-    return isfn(s)
-  if (t == BigInt)
-    return isbigint(s)
-  if (t == Iterator)
-    return isiter(s)
-  console.error(`is(s, t): Call arguments (${s} and ${t.name}) did not match any of the expected cases. Returning false as a precaution.`)
-  return false
+  if (!isctor(t))
+    return t(s)
+  return s instanceof t
+}
+function whatis(s) {
+  return call(Object.prototype.toString, s).slice(8, -1)
 }
 
 function isnull(s) { return s === null }
 function isundef(s) { return s === undefined }
-function isstr(s) { return typeof s == 'string' }
-function isnum(s) { return typeof s == 'number' }
-function isbool(s) { return typeof s == 'boolean' }
-function issym(s) { return typeof s == 'symbol' }
+function isarr(s, fn = s => true) { return Array.isArray(s) && s.every(fn) }
+function isiter(s) { return typeof s == 'object' && Symbol.iterator in s }
+function isgen(s) { return s instanceof Generator }
 function isfn(s) { return typeof s == 'function' }
-function isbigint(s) { return typeof s == 'bigint' }
+function isasynciter(s) { return typeof s == 'object' && Symbol.asyncIterator in s }
+function isasyncgen(s) { return s instanceof AsyncGenerator }
+function isasyncfn(s) { return s instanceof AsyncFunction }
 function isobj(s) { return type(s) == 'object' }
-function isarr(s) { return Array.isArray(s) }
-function isiter(s) { return has(s, Symbol.iterator) }
+function isstr(s) { return typeof s == 'string' || isstrobj(s) }
+function isnum(s) { return typeof s == 'number' || isnumobj(s) }
+function isbool(s) { return typeof s == 'boolean' || isboolobj(s) }
+function issym(s) { return typeof s == 'symbol' }
+function isbigint(s) { return typeof s == 'bigint' }
+function isnullobj(s) { return s && typeof s == 'object' && !(s instanceof Object) }
+function isstrobj(s) { return s && typeof s == 'object' && s instanceof String }
+function isnumobj(s) { return s && typeof s == 'object' && s instanceof Number }
+function isboolobj(s) { return s && typeof s == 'object' && s instanceof Boolean }
 function isprim(s) { return !((s && typeof s == 'object') || typeof s == 'function') }
-function isgen(s) { return is(s, Generator) }
-function isctor(s) { return isfn(s) && s.prototype?.constructor == s }
-function isnullobj(s) { return s && typeof s == 'object' && !is(s, Object) }
-function isstrobj(s) { return s && typeof s == 'object' && is(s, String) }
-function isnumobj(s) { return s && typeof s == 'object' && is(s, Number) }
-function isboolobj(s) { return s && typeof s == 'object' && is(s, Boolean) }
-function isdesc(s) { return has(s, 'configurable', 'enumerable') && (has(s, 'writable', 'value') || has(s, 'get', 'set')) }
-function isregex(s) { return is(s, RegExp) }
-function istagged(s, t) { return isarr(s) && s.every(isstr) && isarr(t) && t.every(isstr) && s.length == t.length + 1 }
-function arrof(s, t) { return s.every(s => is(s, t)) }
+function isdesc(s) { return has(s, 'configurable', 'enumerable', 'writable', 'value') || has(s, 'configurable', 'enumerable', 'get', 'set') }
+function isdescs(s) { return keys(s).every(key => isdesc(s[key])) }
+function isnode(s) { return s instanceof Node }
+function iselem(s) { return s instanceof Element }
+function isregex(s) { return s instanceof RegExp }
+function istagged(s, t) { return isarr(s, isstr) && isarr(t, isstr) && s.length == t.length + 1 }
+function isctor(s) {
+  if (!isfn(s))
+    return false
+  const protoDesc = Object.getOwnPropertyDescriptor(s, 'prototype')
+  if (!protoDesc || protoDesc.writable || protoDesc.enumerable || protoDesc.configurable)
+    return false
+  const ctorDesc = Object.getOwnPropertyDescriptor(protoDesc.value, 'constructor')
+  return ctorDesc && !ctorDesc.enumerable && ctorDesc.value === s
+}
 
 /*=============== dom.js ===============*/
 function selector(sel = '') {
@@ -639,6 +647,12 @@ extend(Array.prototype, {
       return this
     }
   },
+  get first() {
+    return this[0]
+  },
+  set first(value) {
+    this[0] = value
+  },
   get last() {
     return this[this.length-1]
   },
@@ -685,7 +699,6 @@ extend(Window.prototype, {
         currentX = targetX
       if ((downward && currentY > targetY) || (!downward && targetY > currentY))
         currentY = targetY
-      //console.log('origin', origin, 'target', target, 'current', current)
       document.scrollingElement.scrollLeft = currentX
       document.scrollingElement.scrollTop = currentY
 
@@ -711,8 +724,14 @@ extend(Element.prototype, {
     return this.getBoundingClientRect()
   },
   get compStyle() {
-    const comp = this.computedStyleMap()
-    return obj(arr(comp).map(([k, v]) => [k, v[0].toString()]))
+    if (this.computedStyleMap) {
+      const comp = this.computedStyleMap()
+      return obj(arr(comp).map(([k, v]) => [k, v[0].toString()]))
+    }
+    else {
+      const comp = getComputedStyle(this)
+      return obj(arr(comp).map(s => [s, comp[s]]))
+    }
   },
   get first() {
     return this.firstElementChild
@@ -749,7 +768,6 @@ extend(Element.prototype, {
         currentX = targetX
       if ((downward && currentY > targetY) || (!downward && targetY > currentY))
         currentY = targetY
-      //console.log('origin', origin, 'target', target, 'current', current)
       document.scrollingElement.scrollLeft = currentX
       document.scrollingElement.scrollTop = currentY
 
@@ -874,7 +892,7 @@ extend(EventTarget.prototype, {
   removeEventListener(type, handler, options) {
     const events = EventTarget.targets.get(this)
     if (events) {
-      const params = events.filter(s => s.type == type && s.handler == handler && equals(s.options, options))
+      const params = events.filter(s => s.type == type && s.handler == handler && equal(s.options, options))
       events.remove(params)
 
       for (const param of params)
@@ -976,7 +994,7 @@ function events(type) {
       if (isfn(type))
         return s.handler == type
       if (isobj(type))
-        return equals(s.options, type)
+        return equal(s.options, type)
       if (is(type, Element))
         return s.element == type
       return true
@@ -998,12 +1016,11 @@ function GM_fetch(url, opt = { responseType: 'document' }) {
 }
 
 /*=============== other.js ===============*/
-async function loadPages(selTarget, selImages, selPagination, fnMove, fnUrl, fnNum, checkNewImages = false) {
+async function loadPages(selTarget, selImages, selPagination, fnMove, fnUrl, fnNum, fnTarget, checkNewImages = false) {
   if (fnUrl === undefined || fnNum === undefined)
     urls = $$(selPagination).map(s => s.href).unique()
   else
     urls = range(fnNum()).map(s => s + 1).map(fnUrl).slice(1)
-  console.log('urls', urls)
 
   const target = $(selTarget)
   const count = $$(selImages).length
@@ -1017,7 +1034,10 @@ async function loadPages(selTarget, selImages, selPagination, fnMove, fnUrl, fnN
       .filter(el => !checkNewImages || isNewImage(el))
       .map(el => fnMove ? fnMove(el) : el)
     
-    target.append(...newImages)
+    if (fnTarget)
+      fnTarget().after(...newImages)
+    else
+      target.append(...newImages)
   }
   toast('Loading complete', `${urls.length} pages, ${count} => ${$$(selImages).length} images`)
   gallery(selImages)
@@ -1061,14 +1081,12 @@ function gallery(sel, root, forceStopOtherHandlers = false) {
 
     window.addEventListener('keydown', e => {
       if (e.key == 'ArrowRight') {
-        console.log('current', images.indexOf(image.current), 'next', images.indexOf(image.next))
         if (image.isBelow)
-          animScroll(0, 500, 250)
+          animScroll(0, 800, 400)
         else
           image.next?.instantScroll()
       }
       else if (e.key == 'ArrowLeft') {
-        console.log('current', images.indexOf(image.current), 'prev', images.indexOf(image.prev))
         if (image.isAbove)
           animScroll(0, -500, 250)
         else
@@ -1273,10 +1291,11 @@ function regex(flag, ...args) {
 /*=============== extend-more.js ===============*/
 extend(globalThis, {
   arr,
+  ent,
   obj,
   has,
   str,
-  equals,
+  equal,
   range,
   frag,
   html,
@@ -1294,28 +1313,34 @@ extend(globalThis, {
   assign,
   type,
   is,
+  whatis,
   isnull,
   isundef,
+  isarr,
+  isiter,
+  isgen,
+  isfn,
+  isasynciter,
+  isasyncgen,
+  isasyncfn,
+  isobj,
   isstr,
   isnum,
   isbool,
   issym,
-  isfn,
   isbigint,
-  isobj,
-  isarr,
-  isiter,
-  isprim,
-  isgen,
-  isctor,
   isnullobj,
   isstrobj,
   isnumobj,
   isboolobj,
+  isprim,
   isdesc,
+  isdescs,
+  isnode,
+  iselem,
   isregex,
   istagged,
-  arrof,
+  isctor,
   $,
   $$,
   elem,
