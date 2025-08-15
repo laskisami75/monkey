@@ -1,4 +1,4 @@
-const MONKEY_VERSION = 62
+const MONKEY_VERSION = 63
 
 defineGlobalExtensions()
 defineGlobalFunctions()
@@ -385,6 +385,12 @@ function $$style(...cssSets) {
       const comp = el.compStyle
       return wanted.some(s => keys(s).every(k => comp[k] == s[k]))
     })
+}
+function $n(sel, root) {
+  return (root ?? document).nodes.find(s => s.matches(sel))
+}
+function $$n(sel, root) {
+  return (root ?? document).nodes.filter(s => s.matches(sel))
 }
 function $a(sel, root) {
   observer ??= singleObserver()
@@ -891,6 +897,7 @@ function usualStyleViolations() {
       || s.style.position == 'absolute'
       || s.style.opacity.toInt() < 1
       || s.style.transform != 'none'
+      || s.style.float != 'none'
     )
 }
 
@@ -1434,6 +1441,54 @@ function defineGlobalExtensions(targetWindow) {
     get nodes() {
       return arr(document.createNodeIterator(this, NodeFilter.SHOW_ALL))
     },
+    prevIter() {
+      const output = []
+      let node = this.prev
+      while (node) {
+        output.push(node)
+        node = node.prev
+      }
+      return output
+    },
+    nextIter() {
+      const output = []
+      let node = this.next
+      while (node) {
+        output.push(node)
+        node = node.next
+      }
+      return output
+    },
+    parentIter() {
+      const output = []
+      let node = this.parent
+      while (node) {
+        output.push(node)
+        node = node.parent
+      }
+      return output
+    },
+    matches(sel) {
+      sel = sel.trim().replaceAll(/\s+/g, ' ').replaceAll(/\s+([+~>])\s+/g, '$1')
+
+      if (this.isElementNode)
+        return call(Element.prototype.matches, this, sel)
+
+      if (this.nodeType == Node.TEXT_NODE && sel.endsWith('#text')) {
+        const selOper = sel.replace(/#text$/, '').slice(-1)
+        const selRest = sel.slice(0, -6)
+
+        if (selOper == '>')
+          return this.parent.matches(selRest)
+        if (selOper == '+')
+          return this.prev.matches(selRest)
+        if (selOper == '~')
+          return !!this.prevIter().find(s => s.matches(selRest))
+        if (selOper == ' ')
+          return !!this.parentIter().find(s => s.matches(selRest))
+      }
+      return false
+    },
   })
   extend(targetWindow.NodeIterator.prototype, {
     *[Symbol.iterator]() {
@@ -1602,6 +1657,8 @@ function defineGlobalFunctions(targetWindow) {
     $$,
     elem,
     $$style,
+    $n,
+    $$n,
     $a,
     $$a,
     $aa,
