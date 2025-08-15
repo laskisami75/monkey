@@ -1,4 +1,4 @@
-const MONKEY_VERSION = 57
+const MONKEY_VERSION = 58
 
 /*=============== extend.js ===============*/
 define(Symbol, {
@@ -198,17 +198,8 @@ extend(String.prototype, {
   },
 })
 extend(Array.prototype, {
-  unique(fn = s => s) {
-    const output = []
-    const seen = new Set()
-    for (const item of this) {
-      const id = fn(item)
-      if (!seen.has(id)) {
-        output.push(item)
-        seen.add(id)
-      }
-    }
-    return output
+  unique(fn) {
+    return unique(this, fn)
   },
   indexed() {
     return this.map((s, i) => [s, i])
@@ -643,6 +634,20 @@ extend(EventTarget.prototype, {
   },
 })
 
+/*=============== internal.js ===============*/
+function unique(array, fn = s => s) {
+  const output = []
+  const seen = new Set()
+  for (const item of array) {
+    const id = fn(item)
+    if (!seen.has(id)) {
+      output.push(item)
+      seen.add(id)
+    }
+  }
+  return output
+}
+
 /*=============== helpers.js ===============*/
 function arr(target, fn) {
   const array = Array.from(target, fn)
@@ -710,7 +715,7 @@ function serialize(node) {
   return new XMLSerializer().serializeToString(node)
 }
 function keys(...args) {
-  return args.flatMap(s => isprim(s) ? [] : Reflect.ownKeys(s)).unique()
+  return unique(args.flatMap(s => isprim(s) ? [] : Reflect.ownKeys(s)))
 }
 function list(target) {
   const output = []
