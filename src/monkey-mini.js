@@ -1,7 +1,7 @@
-const MONKEY_VERSION = 60
+const MONKEY_VERSION = 61
 
-/*=============== extend.js ===============*/
-
+defineGlobalExtensions()
+defineGlobalFunctions()
 
 /*=============== internal.js ===============*/
 function unique(array, fn = s => s) {
@@ -1607,5 +1607,3 @@ function defineGlobalFunctions(targetWindow) {
     defineGlobalFunctions,
   })
 }
-defineGlobalExtensions()
-defineGlobalFunctions()
