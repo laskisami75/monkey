@@ -1,419 +1,4 @@
-const MONKEY_VERSION = 55
-
-/*=============== helpers.js ===============*/
-function arr(target, fn) {
-  const array = Array.from(target, fn)
-  if (array.some(s => s instanceof Promise))
-    return Array.fromAsync(target, fn)
-  return array
-}
-function ent(target) {
-  return keys(target).map(key => [key, target[key]])
-}
-function obj(entries, value) {
-  if (value === undefined)
-    return Object.fromEntries(entries)
-  return { [entries]: value }
-}
-function has(target, ...props) {
-  return !isprim(target) && props.every(s => s in target)
-}
-function str(target) {
-  if (target === null)
-    return 'null'
-  if (target === undefined)
-    return 'undefined'
-  if (isnullobj(target))
-    return call(Object.prototype.toString, target)
-  return call(Object.getPrototypeOf(target).toString, target)
-}
-function range(a, b) {
-  if (b === undefined)
-    return range(0, a)
-  return arr({ length: b - a }, (_, i) => a + i)
-}
-function equal(a, b) {
-  if (isprim(a) || isprim(b) || isfn(a) || isfn(b))
-    return a === b
-
-  //const abKeys = [...keys(a), ...keys(b)].unique()
-  const abKeys = keys(a, b)
-  for (const key of abKeys) {
-    if (!equal(a[key], b[key]))
-      return false
-  }
-  return true
-}
-function frag(strings, ...rest) {
-  const fragment = new DocumentFragment()
-
-  if (istagged(strings, rest)) {
-    fragment.innerHTML = String.raw(strings, ...rest)
-  }
-  else {
-    for (const child of [strings, ...rest].filter(s => s)) {
-      //if (isstr(child) && child.startsWith('\ue000') && child.endsWith('\ue000'))
-      //  fragment.insertAdjacentHTML('beforeend', child.slice(1, -1))
-      /*if (isstr(child) && child.html)
-        fragment.insertAdjacentHTML('beforeend', child)
-      else
-        fragment.append(child)*/
-      fragment.append(child)
-    }
-  }
-  return fragment
-}
-function serialize(node) {
-  return new XMLSerializer().serializeToString(node)
-}
-function keys(...args) {
-  return args.flatMap(s => isprim(s) ? [] : Reflect.ownKeys(s)).unique()
-}
-function list(target) {
-  const output = []
-  for (const key of keys(target)) {
-    if (isobj(target[key]))
-      output.push(assign({ key, name: key }, target[key]))
-    else
-      output.push({ key, name: key, value: target[key] })
-  }
-  return output
-}
-function getters(target) {
-  return ent(Object.getOwnPropertyDescriptors(target))
-    .map(([key, desc]) => ({ key, ...desc }))
-    .filter(s => 'get' in s)
-}
-function call(fn, thisArg, ...args) {
-  return Reflect.apply(fn, thisArg, args)
-}
-function char(i) {
-  if (isnum(i))
-    return String.fromCharCode(i)
-  return i.charCodeAt(0)
-}
-function desc(target, key) {
-  return assign({ key }, Object.getOwnPropertyDescriptor(target, key))
-}
-function define(target, defines) {
-  if (defines === undefined)
-    return target
-  if (list(Object.getOwnPropertyDescriptors(defines)).every(s => isdesc(s.value)))
-    return Object.defineProperties(target, defines)
-  return Object.defineProperties(target, Object.getOwnPropertyDescriptors(defines))
-}
-function undefine(target, keys) {
-  for (const key of keys)
-    delete target[key]
-  return target
-}
-function extend(target, defines) {
-  defines = Object.getOwnPropertyDescriptors(defines)
-  const preserve = {}
-  const extensions = target[Symbol.extensions] ?? []
-  for (const key of keys(defines)) {
-    if (extensions.includes(key))
-      continue
-    if (issym(key))
-      continue
-    if (keys(target).includes(key))
-      preserve[`_${key}`] = desc(target, key)
-  }
-  
-  define(target, preserve)
-  define(target, defines)
-  define(target, { [Symbol.extensions]: keys(defines) })
-  return target
-}
-function assign(target, ...args) {
-  return Object.assign(target, ...args)
-}
-
-/*=============== time.js ===============*/
-function time() {
-  return new Date().toLocaleTimeString('en-GB', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    fractionalSecondDigits: 3,
-  })
-}
-function passed(since) {
-  function fmt(value, digits = 2) {
-    return value.toString().padStart(digits, '0')
-  }
-  let diff = Date.now() - since
-  let hh = (diff / 3600000 | 0)
-  let mm = (diff / 60000   | 0) % 60
-  let ss = (diff / 1000    | 0) % 60
-  let ms = (diff / 1       | 0) % 1000
-  return `${fmt(hh)}:${fmt(mm)}:${fmt(ss)},${fmt(ms, 3)}`
-}
-
-/*=============== type.js ===============*/
-const Generator = function*(){}.constructor.prototype
-const AsyncGenerator = async function*(){}.constructor.prototype
-const AsyncFunction = async function(){}.constructor
-
-function type(s) {
-  if (s === null)
-    return 'null'
-  if (s === undefined)
-    return 'undefined'
-  if (isarr(s))
-    return 'array'
-  if (isiter(s))
-    return 'iterator'
-  if (isstr(s))
-    return 'string'
-  if (isnum(s))
-    return 'number'
-  if (isbool(s))
-    return 'boolean'
-  return typeof s
-}
-function is(s, t) {
-  if (!isctor(t))
-    return t(s)
-  return s instanceof t
-}
-function whatis(s) {
-  return call(Object.prototype.toString, s).slice(8, -1)
-}
-
-function isnull(s) { return s === null }
-function isundef(s) { return s === undefined }
-function isarr(s, fn = s => true) { return Array.isArray(s) && s.every(fn) }
-function isiter(s) { return typeof s == 'object' && Symbol.iterator in s }
-function isgen(s) { return s instanceof Generator }
-function isfn(s) { return typeof s == 'function' }
-function isasynciter(s) { return typeof s == 'object' && Symbol.asyncIterator in s }
-function isasyncgen(s) { return s instanceof AsyncGenerator }
-function isasyncfn(s) { return s instanceof AsyncFunction }
-function isobj(s) { return type(s) == 'object' }
-function isstr(s) { return typeof s == 'string' || isstrobj(s) }
-function isnum(s) { return typeof s == 'number' || isnumobj(s) }
-function isbool(s) { return typeof s == 'boolean' || isboolobj(s) }
-function issym(s) { return typeof s == 'symbol' }
-function isbigint(s) { return typeof s == 'bigint' }
-function isnullobj(s) { return s && typeof s == 'object' && !(s instanceof Object) }
-function isstrobj(s) { return s && typeof s == 'object' && s instanceof String }
-function isnumobj(s) { return s && typeof s == 'object' && s instanceof Number }
-function isboolobj(s) { return s && typeof s == 'object' && s instanceof Boolean }
-function isprim(s) { return !((s && typeof s == 'object') || typeof s == 'function') }
-function isdesc(s) { return has(s, 'configurable', 'enumerable', 'writable', 'value') || has(s, 'configurable', 'enumerable', 'get', 'set') }
-function isdescs(s) { return keys(s).every(key => isdesc(s[key])) }
-function isnode(s) { return s instanceof Node }
-function iselem(s) { return s instanceof Element }
-function isregex(s) { return s instanceof RegExp }
-function istagged(s, t) { return isarr(s, isstr) && isarr(t, isstr) && s.length == t.length + 1 }
-function isctor(s) {
-  if (!isfn(s))
-    return false
-  const protoDesc = Object.getOwnPropertyDescriptor(s, 'prototype')
-  if (!protoDesc || protoDesc.writable || protoDesc.enumerable || protoDesc.configurable)
-    return false
-  const ctorDesc = Object.getOwnPropertyDescriptor(protoDesc.value, 'constructor')
-  return ctorDesc && !ctorDesc.enumerable && ctorDesc.value === s
-}
-
-/*=============== dom.js ===============*/
-function selector(sel = '') {
-  const masked = sel.trim().mask(/"[^"]*"|'[^']*'/g)
-  const parts = masked.unmask(masked.str.split(/(?=\#|\.|\[)/g))
-  const output = {
-    tag: 'div',
-    classes: [],
-    attrs: [],
-  }
-  function attr(s) {
-    const i = s.indexOf('=')
-    if (i == -1)
-      return { name: s, value: '' }
-    return {
-      name: s.slice(0, i),
-      value: s.slice(i + 1).trim(`"`).trim(`'`)
-    }
-  }
-  for (const part of parts) {
-    if (part.startsWith('#'))
-      output.id = part.slice(1)
-    else if (part.startsWith('.'))
-      output.classes.push(part.slice(1))
-    else if (part.startsWith('['))
-      output.attrs.push(attr(part.slice(1, -1)))
-    else
-      output.tag = part
-  }
-  return output
-}
-function domInsert(fn, args) {
-  args = args.filter(s => s).map(s => isstr(s) ? new Text(s) : s)
-  
-  //const notMounted = args.flatMap(s => !s.isMounted ? s.recurseChildren() : [])
-  const notMounted = args.flatMap(s => !s.isMounted ? s.leafnodes : [])
-  call(fn, this, ...args)
-  
-  if (this.isMounted) {
-    notMounted.forEach(s => {
-      s.dispatch('mounted', { bubbles: true })
-    })
-  }
-  
-  return define(this, {
-    get ids() {
-      return $$('[id]', this).reduce((s, n) => assign(s, obj(n.id.dehyphenate(), n)), {})
-    },
-  })
-}
-function singleObserver() {
-  const stackMap = new Map()
-  const eventMap = new Map()
-  const observer = new MutationObserver(muts => {
-    for (const [sel, value] of eventMap) {
-      const stack = $$(sel, value.root)
-      if (!value.single) {
-        if (stack.length > 0)
-          value.fn(stack)
-      }
-      else {
-        if (stack.length > 0) {
-          stackMap.set(sel, stack.slice(1))
-          value.fn(stack[0])
-        }
-      }
-    }
-  })
-  return {
-    add(sel, single, fn, root = body) {
-      if (single) {
-        if (!stackMap.has(sel) || stackMap.get(sel).length == 0) {
-          stackMap.set(sel, [])
-          eventMap.set(sel, { fn, single, root })
-          observer.observe(root, { childList: true, subtree: true })
-        }
-        else {
-          const stack = stackMap.get(sel)
-          stackMap.set(sel, stack.slice(1))
-          fn(stack[0])
-        }
-      }
-      else {
-        eventMap.set(sel, { fn, single, root })
-        observer.observe(root, { childList: true, subtree: true })
-      }
-    },
-    remove(sel) {
-      eventMap.delete(sel)
-      if (eventMap.size == 0)
-        observer.disconnect()
-    },
-  }
-}
-let observer = null
-function $(sel, root) {
-  return (root ?? document).querySelector(sel)
-}
-function $$(sel, root) {
-  return arr((root ?? document).querySelectorAll(sel))
-}
-function elem(sel, ...children) {
-  const { tag, id, classes, attrs } = selector(sel)
-  const el = document.createElement(tag)
-  if (id)
-    el.id = id
-  if (classes.length > 0)
-    el.classList.add(...classes)
-  for (const attr of attrs)
-    el.setAttribute(attr.name, attr.value)
-  for (const child of children.filter(s => s)) {
-    /*if (isstr(child) && child.startsWith('\ue000') && child.endsWith('\ue000'))
-      el.insertAdjacentHTML('beforeend', child.slice(1, -1))*/
-    /*if (isstr(child) && child.html)
-      el.insertAdjacentHTML('beforeend', child)
-    else
-      el.append(child)*/
-    el.append(child)
-  }
-  return el
-}
-function $$style(...cssSets) {
-  const wanted = cssSets.map(s => obj(s.split(';')
-    .map(s => s.trim())
-    .filter(s => s)
-    .map(s => s.split(':').map(s => s.trim()))))
-  return $$('*')
-    .filter(el => {
-      const comp = el.compStyle
-      return wanted.some(s => keys(s).every(k => comp[k] == s[k]))
-    })
-}
-function $a(sel, root) {
-  observer ??= singleObserver()
-  return new Promise(resolve => {
-    observer.add(sel, true, el => {
-      observer.remove(sel)
-      resolve(el)
-    }, root)
-  })
-}
-async function* $$a(sel, root) {
-  while (true)
-    yield* await $aa(sel, root)
-}
-async function $aa(sel, root) {
-  observer ??= singleObserver()
-  return new Promise(resolve => {
-    observer.add(sel, false, el => {
-      resolve(el)
-    }, root)
-  })
-}
-async function* $$aa(sel, root) {
-  while (true)
-    yield await $aa(sel, root)
-}
-function parentNodes(node) {
-  const output = []
-  while (node) {
-    output.push(node)
-    node = node.parentNode
-  }
-  return output
-}
-function sharedNode(...nodes) {
-  let sharedPercentage = 1
-  if (isnum(nodes.last)) {
-    sharedPercentage = nodes.last
-    nodes = nodes.slice(0, -1)
-  }
-
-  for (const parent of parentNodes(nodes[0])) {
-    const count = nodes.count(s => parent.contains(s))
-    if (count / nodes.length >= sharedPercentage)
-      return parent
-  }
-}
-
-/*=============== tools.js ===============*/
-function openStore(id) {
-  return new Proxy({ id }, {
-    get(target, key) {
-      return JSON.parse(str(localStorage.getItem(`@${id}/${key}`)))
-    },
-    set(target, key, value) {
-      localStorage.setItem(`@${id}/${key}`, JSON.stringify(value))
-      return true
-    },
-    has(target, key) {
-      return localStorage.getItem(`@${id}/${key}`) != null
-    },
-    deleteProperty(target, key) {
-      localStorage.removeItem(`@${id}/${key}`)
-      return true
-    },
-  })
-}
+const MONKEY_VERSION = 56
 
 /*=============== extend.js ===============*/
 define(Symbol, {
@@ -1043,6 +628,421 @@ extend(EventTarget.prototype, {
     }
   },
 })
+
+/*=============== helpers.js ===============*/
+function arr(target, fn) {
+  const array = Array.from(target, fn)
+  if (array.some(s => s instanceof Promise))
+    return Array.fromAsync(target, fn)
+  return array
+}
+function ent(target) {
+  return keys(target).map(key => [key, target[key]])
+}
+function obj(entries, value) {
+  if (value === undefined)
+    return Object.fromEntries(entries)
+  return { [entries]: value }
+}
+function has(target, ...props) {
+  return !isprim(target) && props.every(s => s in target)
+}
+function str(target) {
+  if (target === null)
+    return 'null'
+  if (target === undefined)
+    return 'undefined'
+  if (isnullobj(target))
+    return call(Object.prototype.toString, target)
+  return call(Object.getPrototypeOf(target).toString, target)
+}
+function range(a, b) {
+  if (b === undefined)
+    return range(0, a)
+  return arr({ length: b - a }, (_, i) => a + i)
+}
+function equal(a, b) {
+  if (isprim(a) || isprim(b) || isfn(a) || isfn(b))
+    return a === b
+
+  //const abKeys = [...keys(a), ...keys(b)].unique()
+  const abKeys = keys(a, b)
+  for (const key of abKeys) {
+    if (!equal(a[key], b[key]))
+      return false
+  }
+  return true
+}
+function frag(strings, ...rest) {
+  const fragment = new DocumentFragment()
+
+  if (istagged(strings, rest)) {
+    fragment.innerHTML = String.raw(strings, ...rest)
+  }
+  else {
+    for (const child of [strings, ...rest].filter(s => s)) {
+      //if (isstr(child) && child.startsWith('\ue000') && child.endsWith('\ue000'))
+      //  fragment.insertAdjacentHTML('beforeend', child.slice(1, -1))
+      /*if (isstr(child) && child.html)
+        fragment.insertAdjacentHTML('beforeend', child)
+      else
+        fragment.append(child)*/
+      fragment.append(child)
+    }
+  }
+  return fragment
+}
+function serialize(node) {
+  return new XMLSerializer().serializeToString(node)
+}
+function keys(...args) {
+  return args.flatMap(s => isprim(s) ? [] : Reflect.ownKeys(s)).unique()
+}
+function list(target) {
+  const output = []
+  for (const key of keys(target)) {
+    if (isobj(target[key]))
+      output.push(assign({ key, name: key }, target[key]))
+    else
+      output.push({ key, name: key, value: target[key] })
+  }
+  return output
+}
+function getters(target) {
+  return ent(Object.getOwnPropertyDescriptors(target))
+    .map(([key, desc]) => ({ key, ...desc }))
+    .filter(s => 'get' in s)
+}
+function call(fn, thisArg, ...args) {
+  return Reflect.apply(fn, thisArg, args)
+}
+function char(i) {
+  if (isnum(i))
+    return String.fromCharCode(i)
+  return i.charCodeAt(0)
+}
+function desc(target, key) {
+  return assign({ key }, Object.getOwnPropertyDescriptor(target, key))
+}
+function define(target, defines) {
+  if (defines === undefined)
+    return target
+  if (list(Object.getOwnPropertyDescriptors(defines)).every(s => isdesc(s.value)))
+    return Object.defineProperties(target, defines)
+  return Object.defineProperties(target, Object.getOwnPropertyDescriptors(defines))
+}
+function undefine(target, keys) {
+  for (const key of keys)
+    delete target[key]
+  return target
+}
+function extend(target, defines) {
+  defines = Object.getOwnPropertyDescriptors(defines)
+  const preserve = {}
+  const extensions = target[Symbol.extensions] ?? []
+  for (const key of keys(defines)) {
+    if (extensions.includes(key))
+      continue
+    if (issym(key))
+      continue
+    if (keys(target).includes(key))
+      preserve[`_${key}`] = desc(target, key)
+  }
+  
+  define(target, preserve)
+  define(target, defines)
+  define(target, { [Symbol.extensions]: keys(defines) })
+  return target
+}
+function assign(target, ...args) {
+  return Object.assign(target, ...args)
+}
+
+/*=============== time.js ===============*/
+function time() {
+  return new Date().toLocaleTimeString('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    fractionalSecondDigits: 3,
+  })
+}
+function passed(since) {
+  function fmt(value, digits = 2) {
+    return value.toString().padStart(digits, '0')
+  }
+  let diff = Date.now() - since
+  let hh = (diff / 3600000 | 0)
+  let mm = (diff / 60000   | 0) % 60
+  let ss = (diff / 1000    | 0) % 60
+  let ms = (diff / 1       | 0) % 1000
+  return `${fmt(hh)}:${fmt(mm)}:${fmt(ss)},${fmt(ms, 3)}`
+}
+
+/*=============== type.js ===============*/
+const Generator = function*(){}.constructor.prototype
+const AsyncGenerator = async function*(){}.constructor.prototype
+const AsyncFunction = async function(){}.constructor
+
+function type(s) {
+  if (s === null)
+    return 'null'
+  if (s === undefined)
+    return 'undefined'
+  if (isarr(s))
+    return 'array'
+  if (isiter(s))
+    return 'iterator'
+  if (isstr(s))
+    return 'string'
+  if (isnum(s))
+    return 'number'
+  if (isbool(s))
+    return 'boolean'
+  return typeof s
+}
+function is(s, t) {
+  if (!isctor(t))
+    return t(s)
+  return s instanceof t
+}
+function whatis(s) {
+  return call(Object.prototype.toString, s).slice(8, -1)
+}
+
+function isnull(s) { return s === null }
+function isundef(s) { return s === undefined }
+function isarr(s, fn = s => true) { return Array.isArray(s) && s.every(fn) }
+function isiter(s) { return typeof s == 'object' && Symbol.iterator in s }
+function isgen(s) { return s instanceof Generator }
+function isfn(s) { return typeof s == 'function' }
+function isasynciter(s) { return typeof s == 'object' && Symbol.asyncIterator in s }
+function isasyncgen(s) { return s instanceof AsyncGenerator }
+function isasyncfn(s) { return s instanceof AsyncFunction }
+function isobj(s) { return type(s) == 'object' }
+function isstr(s) { return typeof s == 'string' || isstrobj(s) }
+function isnum(s) { return typeof s == 'number' || isnumobj(s) }
+function isbool(s) { return typeof s == 'boolean' || isboolobj(s) }
+function issym(s) { return typeof s == 'symbol' }
+function isbigint(s) { return typeof s == 'bigint' }
+function isnullobj(s) { return s && typeof s == 'object' && !(s instanceof Object) }
+function isstrobj(s) { return s && typeof s == 'object' && s instanceof String }
+function isnumobj(s) { return s && typeof s == 'object' && s instanceof Number }
+function isboolobj(s) { return s && typeof s == 'object' && s instanceof Boolean }
+function isprim(s) { return !((s && typeof s == 'object') || typeof s == 'function') }
+function isdesc(s) { return has(s, 'configurable', 'enumerable', 'writable', 'value') || has(s, 'configurable', 'enumerable', 'get', 'set') }
+function isdescs(s) { return keys(s).every(key => isdesc(s[key])) }
+function isnode(s) { return s instanceof Node }
+function iselem(s) { return s instanceof Element }
+function isregex(s) { return s instanceof RegExp }
+function istagged(s, t) { return isarr(s, isstr) && isarr(t, isstr) && s.length == t.length + 1 }
+function isctor(s) {
+  if (!isfn(s))
+    return false
+  const protoDesc = Object.getOwnPropertyDescriptor(s, 'prototype')
+  if (!protoDesc || protoDesc.writable || protoDesc.enumerable || protoDesc.configurable)
+    return false
+  const ctorDesc = Object.getOwnPropertyDescriptor(protoDesc.value, 'constructor')
+  return ctorDesc && !ctorDesc.enumerable && ctorDesc.value === s
+}
+
+/*=============== dom.js ===============*/
+function selector(sel = '') {
+  const masked = sel.trim().mask(/"[^"]*"|'[^']*'/g)
+  const parts = masked.unmask(masked.str.split(/(?=\#|\.|\[)/g))
+  const output = {
+    tag: 'div',
+    classes: [],
+    attrs: [],
+  }
+  function attr(s) {
+    const i = s.indexOf('=')
+    if (i == -1)
+      return { name: s, value: '' }
+    return {
+      name: s.slice(0, i),
+      value: s.slice(i + 1).trim(`"`).trim(`'`)
+    }
+  }
+  for (const part of parts) {
+    if (part.startsWith('#'))
+      output.id = part.slice(1)
+    else if (part.startsWith('.'))
+      output.classes.push(part.slice(1))
+    else if (part.startsWith('['))
+      output.attrs.push(attr(part.slice(1, -1)))
+    else
+      output.tag = part
+  }
+  return output
+}
+function domInsert(fn, args) {
+  args = args.filter(s => s).map(s => isstr(s) ? new Text(s) : s)
+  
+  //const notMounted = args.flatMap(s => !s.isMounted ? s.recurseChildren() : [])
+  const notMounted = args.flatMap(s => !s.isMounted ? s.leafnodes : [])
+  call(fn, this, ...args)
+  
+  if (this.isMounted) {
+    notMounted.forEach(s => {
+      s.dispatch('mounted', { bubbles: true })
+    })
+  }
+  
+  return define(this, {
+    get ids() {
+      return $$('[id]', this).reduce((s, n) => assign(s, obj(n.id.dehyphenate(), n)), {})
+    },
+  })
+}
+function singleObserver() {
+  const stackMap = new Map()
+  const eventMap = new Map()
+  const observer = new MutationObserver(muts => {
+    for (const [sel, value] of eventMap) {
+      const stack = $$(sel, value.root)
+      if (!value.single) {
+        if (stack.length > 0)
+          value.fn(stack)
+      }
+      else {
+        if (stack.length > 0) {
+          stackMap.set(sel, stack.slice(1))
+          value.fn(stack[0])
+        }
+      }
+    }
+  })
+  return {
+    add(sel, single, fn, root = body) {
+      if (single) {
+        if (!stackMap.has(sel) || stackMap.get(sel).length == 0) {
+          stackMap.set(sel, [])
+          eventMap.set(sel, { fn, single, root })
+          observer.observe(root, { childList: true, subtree: true })
+        }
+        else {
+          const stack = stackMap.get(sel)
+          stackMap.set(sel, stack.slice(1))
+          fn(stack[0])
+        }
+      }
+      else {
+        eventMap.set(sel, { fn, single, root })
+        observer.observe(root, { childList: true, subtree: true })
+      }
+    },
+    remove(sel) {
+      eventMap.delete(sel)
+      if (eventMap.size == 0)
+        observer.disconnect()
+    },
+  }
+}
+let observer = null
+function $(sel, root) {
+  return (root ?? document).querySelector(sel)
+}
+function $$(sel, root) {
+  return arr((root ?? document).querySelectorAll(sel))
+}
+function elem(sel, ...children) {
+  const { tag, id, classes, attrs } = selector(sel)
+  const el = document.createElement(tag)
+  if (id)
+    el.id = id
+  if (classes.length > 0)
+    el.classList.add(...classes)
+  for (const attr of attrs)
+    el.setAttribute(attr.name, attr.value)
+  for (const child of children.filter(s => s)) {
+    /*if (isstr(child) && child.startsWith('\ue000') && child.endsWith('\ue000'))
+      el.insertAdjacentHTML('beforeend', child.slice(1, -1))*/
+    /*if (isstr(child) && child.html)
+      el.insertAdjacentHTML('beforeend', child)
+    else
+      el.append(child)*/
+    el.append(child)
+  }
+  return el
+}
+function $$style(...cssSets) {
+  const wanted = cssSets.map(s => obj(s.split(';')
+    .map(s => s.trim())
+    .filter(s => s)
+    .map(s => s.split(':').map(s => s.trim()))))
+  return $$('*')
+    .filter(el => {
+      const comp = el.compStyle
+      return wanted.some(s => keys(s).every(k => comp[k] == s[k]))
+    })
+}
+function $a(sel, root) {
+  observer ??= singleObserver()
+  return new Promise(resolve => {
+    observer.add(sel, true, el => {
+      observer.remove(sel)
+      resolve(el)
+    }, root)
+  })
+}
+async function* $$a(sel, root) {
+  while (true)
+    yield* await $aa(sel, root)
+}
+async function $aa(sel, root) {
+  observer ??= singleObserver()
+  return new Promise(resolve => {
+    observer.add(sel, false, el => {
+      resolve(el)
+    }, root)
+  })
+}
+async function* $$aa(sel, root) {
+  while (true)
+    yield await $aa(sel, root)
+}
+function parentNodes(node) {
+  const output = []
+  while (node) {
+    output.push(node)
+    node = node.parentNode
+  }
+  return output
+}
+function sharedNode(...nodes) {
+  let sharedPercentage = 1
+  if (isnum(nodes.last)) {
+    sharedPercentage = nodes.last
+    nodes = nodes.slice(0, -1)
+  }
+
+  for (const parent of parentNodes(nodes[0])) {
+    const count = nodes.count(s => parent.contains(s))
+    if (count / nodes.length >= sharedPercentage)
+      return parent
+  }
+}
+
+/*=============== tools.js ===============*/
+function openStore(id) {
+  return new Proxy({ id }, {
+    get(target, key) {
+      return JSON.parse(str(localStorage.getItem(`@${id}/${key}`)))
+    },
+    set(target, key, value) {
+      localStorage.setItem(`@${id}/${key}`, JSON.stringify(value))
+      return true
+    },
+    has(target, key) {
+      return localStorage.getItem(`@${id}/${key}`) != null
+    },
+    deleteProperty(target, key) {
+      localStorage.removeItem(`@${id}/${key}`)
+      return true
+    },
+  })
+}
 
 /*=============== events.js ===============*/
 const eventElementPrototypes = [
