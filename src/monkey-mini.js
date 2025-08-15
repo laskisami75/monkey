@@ -1,23 +1,9 @@
-const MONKEY_VERSION = 58
+const MONKEY_VERSION = 59
 
 /*=============== extend.js ===============*/
 define(Symbol, {
   extensions: Symbol.extensions ?? Symbol('extensions'),
 })
-/*forceDefine(Array.prototype, {
-  unique(fn = s => s) {
-    const output = []
-    const seen = new Set()
-    for (const item of this) {
-      const id = fn(item)
-      if (!seen.has(id)) {
-        output.push(item)
-        seen.add(id)
-      }
-    }
-    return output
-  },
-})*/
 extend(String.prototype, {
   toInt() {
     return parseInt(this.match(/-?\d+/)[0])
@@ -1168,6 +1154,8 @@ async function loadPages(selTarget, selImages, selPagination, fnMove, fnUrl, fnN
       .filter(el => !checkNewImages || isNewImage(el))
       .map(el => fnMove ? fnMove(el) : el)
     
+    newImages.forEach(s => document.adoptNode(s))
+    
     if (fnTarget)
       fnTarget().after(...newImages)
     else
@@ -1215,7 +1203,8 @@ function imagePage(sel, root) {
     },
     scrollWatcher(fn) {
       let prevState = this.current
-      return scr.addEventListener('scroll', e => {
+      //return scr.addEventListener('scroll', e => {
+      return document.addEventListener('scroll', e => {
         const state = this.current
         if (state != prevState)
           fn({
