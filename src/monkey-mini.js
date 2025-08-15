@@ -1,7 +1,8 @@
-const MONKEY_VERSION = 61
+const MONKEY_VERSION = 62
 
 defineGlobalExtensions()
 defineGlobalFunctions()
+attachImageEventHandlers()
 
 /*=============== internal.js ===============*/
 function unique(array, fn = s => s) {
@@ -60,6 +61,22 @@ function equal(a, b) {
       return false
   }
   return true
+}
+function diff(a, b, target = {}) {
+  if (isprim(a) || isprim(b) || isfn(a) || isfn(b)) {
+    if (a === b)
+      return undefined
+    return assign(target, { a, b })
+  }
+  //const abKeys = unique([...keys(a), ...keys(b)])
+  const abKeys = keys(a, b)
+  for (const key of abKeys) {
+    if (!equal(a[key], b[key])) {
+      target[key] = {}
+      target[key] = diff(a[key], b[key], target[key])
+    }
+  }
+  return target
 }
 function frag(strings, ...rest) {
   const fragment = new DocumentFragment()
@@ -436,6 +453,24 @@ function openStore(id) {
   })
 }
 
+/*=============== image.js ===============*/
+function attachImageEventHandlers() {
+  $$('img').forEach(img => {
+    if (!img.hasEventListeners) {
+      img.hasEventListeners = true
+
+      img.addEventListener('load', e => {
+        img.loaded = true
+        img.errored = false
+      })
+      img.addEventListener('error', e => {
+        img.loaded = true
+        img.errored = true
+      })
+    }
+  })
+}
+
 /*=============== events.js ===============*/
 const eventElementPrototypes = [
   EventTarget.prototype,
@@ -577,6 +612,12 @@ function imagePage(sel, root) {
     get prev() {
       return this.images.toReversed().find(s => s.rect.y < 0)
     },
+    get shouldLatchDown() {
+      return this.images[0].rect.y >= 0 && this.images[0].rect.y < innerHeight
+    },
+    get shouldLatchUp() {
+      return this.images.last.rect.y <= 0 && this.images.last.rect.y > innerHeight
+    },
     get isAbove() {
       return this.images[0].rect.y >= 0
     },
@@ -587,6 +628,7 @@ function imagePage(sel, root) {
       let prevState = this.current
       //return scr.addEventListener('scroll', e => {
       return document.addEventListener('scroll', e => {
+        console.log('scrollWatcher', e)
         const state = this.current
         if (state != prevState)
           fn({
@@ -621,7 +663,9 @@ function gallery(sel, root, forceStopOtherHandlers = false) {
 
     const eventHandle = window.addEventListener('keydown', e => {
       if (e.key == 'ArrowLeft') {
-        if (imageHandle.isAbove)
+        if (imageHandle.shouldLatchUp)
+          imageHandle.prev?.instantScroll()
+        else if (imageHandle.isAbove)
           animScroll(0, -800, 400)
         else if (imageHandle.isBelow)
           animScroll(0, 800, 400)
@@ -629,7 +673,9 @@ function gallery(sel, root, forceStopOtherHandlers = false) {
           imageHandle.prev?.instantScroll()
       }
       else if (e.key == 'ArrowRight') {
-        if (imageHandle.isAbove)
+        if (imageHandle.shouldLatchDown)
+          imageHandle.next?.instantScroll()
+        else if (imageHandle.isAbove)
           animScroll(0, -800, 400)
         else if (imageHandle.isBelow)
           animScroll(0, 800, 400)
@@ -822,6 +868,14 @@ function style(css) {
       else
         head.append(el)
     }
+    else if (e.code == 'Numpad1') {
+      const images = $$('img')
+      const errored = images.filter(img => img.isErrored || img.errored)
+
+      errored.forEach(img => img.reload())
+
+      toast('Reloading images', `Reloading ${errored.length}/${images.length} images`)
+    }
   })
 }
 function usualStyleViolations() {
@@ -871,6 +925,7 @@ function html(strings, ...rest) {
 /*=============== extend-more.js ===============*/
 function defineGlobalExtensions(targetWindow) {
   targetWindow ??= window
+
   define(targetWindow.Symbol, {
     extensions: targetWindow.Symbol.extensions ?? Symbol('extensions'),
   })
@@ -1379,19 +1434,6 @@ function defineGlobalExtensions(targetWindow) {
     get nodes() {
       return arr(document.createNodeIterator(this, NodeFilter.SHOW_ALL))
     },
-    /*get leafNodes() {
-      return this.recurseChildren().filter(s => s.childNodes.length == 0)
-    },
-    recurseChildren() {
-      const output = []
-      function traverse(node) {
-        output.push(node)
-        for (const child of node.childNodes)
-          traverse(child)
-      }
-      traverse(this)
-      return output
-    },*/
   })
   extend(targetWindow.NodeIterator.prototype, {
     *[Symbol.iterator]() {
@@ -1404,15 +1446,15 @@ function defineGlobalExtensions(targetWindow) {
   })
   extend(targetWindow.Image.prototype, {
     reload() {
-      if (this.isLoaded) {
+      if (this.isErrored) {
         return new Promise(resolve => {
           this.onload = e => resolve(this)
           this.src = `${this.src.replace(/\?.+$/, '')}?${Date.now()}`
         })
       }
     },
-    get isLoaded() {
-      return this.complete && this.naturalWidth > 0 && this.naturalHeight > 0
+    get isErrored() {
+      return this.complete && this.naturalWidth == 0 && this.naturalHeight == 0
     },
   })
   extend(targetWindow.EventTarget, {
@@ -1492,6 +1534,7 @@ function defineGlobalExtensions(targetWindow) {
 }
 function defineGlobalFunctions(targetWindow) {
   targetWindow ??= window
+
   extend(targetWindow, {
     MONKEY_VERSION,
 
@@ -1502,6 +1545,7 @@ function defineGlobalFunctions(targetWindow) {
     has,
     str,
     equal,
+    diff,
     range,
     frag,
     serialize,
@@ -1567,6 +1611,9 @@ function defineGlobalFunctions(targetWindow) {
 
     //--------------- tools.js ---------------
     openStore,
+
+    //--------------- image.js ---------------
+    attachImageEventHandlers,
 
     //--------------- events.js ---------------
     events,
