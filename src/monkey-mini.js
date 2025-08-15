@@ -1,9 +1,4 @@
-
-//===================== TODO =====================
-//================================================
-define(globalThis, {
-  MONKEY_VERSION: 54
-})
+const MONKEY_VERSION = 55
 
 /*=============== helpers.js ===============*/
 function arr(target, fn) {
@@ -41,7 +36,8 @@ function equal(a, b) {
   if (isprim(a) || isprim(b) || isfn(a) || isfn(b))
     return a === b
 
-  const abKeys = [...keys(a), ...keys(b)].unique()
+  //const abKeys = [...keys(a), ...keys(b)].unique()
+  const abKeys = keys(a, b)
   for (const key of abKeys) {
     if (!equal(a[key], b[key]))
       return false
@@ -55,28 +51,23 @@ function frag(strings, ...rest) {
     fragment.innerHTML = String.raw(strings, ...rest)
   }
   else {
-    for (const child of [strings, ...rest].filter()) {
-      if (isstr(child) && child.startsWith('\ue000') && child.endsWith('\ue000'))
-        fragment.insertAdjacentHTML('beforeend', child.slice(1, -1))
+    for (const child of [strings, ...rest].filter(s => s)) {
+      //if (isstr(child) && child.startsWith('\ue000') && child.endsWith('\ue000'))
+      //  fragment.insertAdjacentHTML('beforeend', child.slice(1, -1))
+      /*if (isstr(child) && child.html)
+        fragment.insertAdjacentHTML('beforeend', child)
       else
-        fragment.append(child)
+        fragment.append(child)*/
+      fragment.append(child)
     }
   }
   return fragment
 }
-function html(strings, ...rest) {
-  if (isstr(strings))
-    return new DOMParser().parseFromString(strings, 'text/html')
-  return `\ue000${String.raw(strings, ...rest)}\ue000`
-  //return elem('div').set(el => el.outerHTML = String.raw(strings, ...rest))
-}
 function serialize(node) {
   return new XMLSerializer().serializeToString(node)
 }
-function keys(target) {
-  if (isprim(target))
-    return []
-  return Reflect.ownKeys(target)
+function keys(...args) {
+  return args.flatMap(s => isprim(s) ? [] : Reflect.ownKeys(s)).unique()
 }
 function list(target) {
   const output = []
@@ -87,6 +78,11 @@ function list(target) {
       output.push({ key, name: key, value: target[key] })
   }
   return output
+}
+function getters(target) {
+  return ent(Object.getOwnPropertyDescriptors(target))
+    .map(([key, desc]) => ({ key, ...desc }))
+    .filter(s => 'get' in s)
 }
 function call(fn, thisArg, ...args) {
   return Reflect.apply(fn, thisArg, args)
@@ -255,14 +251,14 @@ function domInsert(fn, args) {
   args = args.filter(s => s).map(s => isstr(s) ? new Text(s) : s)
   
   //const notMounted = args.flatMap(s => !s.isMounted ? s.recurseChildren() : [])
+  const notMounted = args.flatMap(s => !s.isMounted ? s.leafnodes : [])
   call(fn, this, ...args)
   
-  /*if (this.isMounted) {
+  if (this.isMounted) {
     notMounted.forEach(s => {
-      if (s.dispatch)
-        s.dispatch('mounted')
+      s.dispatch('mounted', { bubbles: true })
     })
-  }*/
+  }
   
   return define(this, {
     get ids() {
@@ -330,11 +326,14 @@ function elem(sel, ...children) {
     el.classList.add(...classes)
   for (const attr of attrs)
     el.setAttribute(attr.name, attr.value)
-  for (const child of children.filter()) {
-    if (isstr(child) && child.startsWith('\ue000') && child.endsWith('\ue000'))
-      el.insertAdjacentHTML('beforeend', child.slice(1, -1))
+  for (const child of children.filter(s => s)) {
+    /*if (isstr(child) && child.startsWith('\ue000') && child.endsWith('\ue000'))
+      el.insertAdjacentHTML('beforeend', child.slice(1, -1))*/
+    /*if (isstr(child) && child.html)
+      el.insertAdjacentHTML('beforeend', child)
     else
-      el.append(child)
+      el.append(child)*/
+    el.append(child)
   }
   return el
 }
@@ -373,6 +372,27 @@ async function $aa(sel, root) {
 async function* $$aa(sel, root) {
   while (true)
     yield await $aa(sel, root)
+}
+function parentNodes(node) {
+  const output = []
+  while (node) {
+    output.push(node)
+    node = node.parentNode
+  }
+  return output
+}
+function sharedNode(...nodes) {
+  let sharedPercentage = 1
+  if (isnum(nodes.last)) {
+    sharedPercentage = nodes.last
+    nodes = nodes.slice(0, -1)
+  }
+
+  for (const parent of parentNodes(nodes[0])) {
+    const count = nodes.count(s => parent.contains(s))
+    if (count / nodes.length >= sharedPercentage)
+      return parent
+  }
 }
 
 /*=============== tools.js ===============*/
@@ -615,6 +635,14 @@ extend(Array.prototype, {
   maxIndex(fn = s => s) {
     return this.reduce((s, n, i) => fn(this[s]) > fn(n) ? s : i, 0)
   },
+  count(fn) {
+    let count = 0
+    for (let i = 0; i < this.length; i++) {
+      if (fn(this[i], i, this))
+        count++
+    }
+    return count
+  },
   clear() {
     this.splice(0, this.length)
     return this
@@ -789,6 +817,46 @@ extend(Element.prototype, {
     call(fn, this, this)
     return this
   },
+  get uniqueSelector() {
+    function* generateSelectors(node) {
+      const tag = node.localName
+      yield tag
+      
+      if (node.id)
+        yield `${tag}#${node.id}`
+
+      yield* arr(node.classList)
+        .map(s => `${tag}.${s}`)
+        .sort((a, b) => $$(sel + a, node).length - $$(sel + b, node).length)
+      
+      yield* arr(node.attributes)
+        .filter(s => s.name != 'class' && s.name != 'id')
+        .map(s => `${tag}[${s.name}="${s.value}"]`)
+      
+      const deepChildren = node.nodes.filter(s => s.nodeType == Node.ELEMENT_NODE)
+      yield* deepChildren
+        .filter(s => s.id)
+        .map(s => s.parent == node ? `${tag}:has(> #${s.id})` : `${tag}:has(#${s.id})`)
+      
+      yield* deepChildren
+        .flatMap(el => arr(el.classList).map(s => ({ element: el, className: s })))
+        .map(s => s.element.parent == node ? `${tag}:has(> .${s.className})` : `${tag}:has(.${s.className})`)
+      
+      yield* deepChildren
+        .flatMap(el => arr(el.attributes).map(s => ({ element: el, selector: `[${s.name}="${s.value}"]` })))
+        .map(s => s.element.parent == node ? `${tag}:has(> ${s.selector})` : `${tag}:has(${s.selector})`)
+
+      if (!node.prev)
+        yield `${tag}:first-child`
+      if (!node.next)
+        yield `${tag}:last-child`
+      yield `${tag}:nth-child(${arr(node.parent.children).indexOf(node) + 1})`
+    }
+    for (const selector of generateSelectors(this)) {
+      if ($$(selector).length == 1)
+        return selector
+    }
+  },
 })
 extend(DocumentFragment.prototype, {
   get innerHTML() {
@@ -830,13 +898,42 @@ extend(Node.prototype, {
   get parent() {
     return this.parentElement
   },
-  /*get isMounted() {
+  get children() {
+    return arr(this.childNodes).filter(s => s.isElementNode)
+  },
+  get prev() {
+    let node = this.previousSibling
+    while (node && !node.isElementNode)
+      node.previousSibling
+    return node
+  },
+  get next() {
+    let node = this.nextSibling
+    while (node && !node.isElementNode)
+      node.nextSibling
+    return node
+  },
+  get isElementNode() {
+    return this.nodeType == Node.ELEMENT_NODE
+  },
+  get isMounted() {
     let node = this
     while (node.parentNode)
       node = node.parentNode
     return node == document
   },
-  get leafNodes() {
+  get leafnodes() {
+    return arr(document.createNodeIterator(this, NodeFilter.SHOW_ELEMENT))
+      .filter(s => s.children.length == 0)
+  },
+  get textnodes() {
+    return arr(document.createNodeIterator(this, NodeFilter.SHOW_TEXT))
+      .filter(s => /\S/.test(s.text))
+  },
+  get nodes() {
+    return arr(document.createNodeIterator(this, NodeFilter.SHOW_ALL))
+  },
+  /*get leafNodes() {
     return this.recurseChildren().filter(s => s.childNodes.length == 0)
   },
   recurseChildren() {
@@ -859,15 +956,17 @@ extend(NodeIterator.prototype, {
     }
   },
 })
-extend(Image, {
+extend(Image.prototype, {
   reload() {
-    if (this.complete && this.naturalWidth == 0) {
-      const image = this
+    if (this.isLoaded) {
       return new Promise(resolve => {
-        image.onload = e => resolve(image)
-        image.src = `${image.src.replaceAll(/\?.+$/, '')}?${Date.now()}`
+        this.onload = e => resolve(this)
+        this.src = `${this.src.replace(/\?.+$/, '')}?${Date.now()}`
       })
     }
+  },
+  get isLoaded() {
+    return this.complete && this.naturalWidth > 0 && this.naturalHeight > 0
   },
 })
 extend(EventTarget, {
@@ -877,7 +976,7 @@ extend(EventTarget.prototype, {
   addEventListener(type, handler, options) {
     const events = EventTarget.targets.get(this) ?? EventTarget.targets.set(this, []).get(this)
     const target = this
-    events.push({
+    const state = {
       type,
       handler,
       options,
@@ -885,9 +984,11 @@ extend(EventTarget.prototype, {
       unlisten() {
         target._removeEventListener(this.type, this.handler, this.options)
       },
-    })
+    }
+    events.push(state)
 
     this._addEventListener(type, handler, options)
+    return state
   },
   removeEventListener(type, handler, options) {
     const events = EventTarget.targets.get(this)
@@ -899,7 +1000,9 @@ extend(EventTarget.prototype, {
         this._removeEventListener(param.type, param.handler, param.options)
     }
   },
-  dispatch(type, props = {}) {
+  dispatch(type, props) {
+    props = assign({ bubbles: true }, props)
+
     this.dispatchEvent(new (class extends Event {
       constructor() {
         super(type, props)
@@ -915,7 +1018,7 @@ extend(EventTarget.prototype, {
 
     const events = EventTarget.targets.get(this) ?? EventTarget.targets.set(this, []).get(this)
     const target = this
-    events.push({
+    const state = {
       type,
       handler: delegate,
       options,
@@ -923,9 +1026,11 @@ extend(EventTarget.prototype, {
       unlisten() {
         target._removeEventListener(this.type, this.handler, this.options)
       },
-    })
+    }
+    events.push(state)
 
     this._addEventListener(type, delegate, options)
+    return state
   },
   unlisten(type) {
     const events = EventTarget.targets.get(this)
@@ -940,15 +1045,21 @@ extend(EventTarget.prototype, {
 })
 
 /*=============== events.js ===============*/
-const eventNames = [EventTarget.prototype, Node.prototype, Element.prototype, HTMLElement.prototype, Document.prototype, Window.prototype]
+const eventElementPrototypes = [
+  EventTarget.prototype,
+  Node.prototype,
+  Element.prototype,
+  HTMLElement.prototype,
+  Document.prototype,
+  Window.prototype,
+]
+const eventNames = eventElementPrototypes
   .flatMap(s => keys(s).filter(key => isstr(key) && key.startsWith('on')))
   .unique()
-undefine(EventTarget.prototype, eventNames)
-undefine(Node.prototype, eventNames)
-undefine(Element.prototype, eventNames)
-undefine(HTMLElement.prototype, eventNames)
-undefine(Document.prototype, eventNames)
-undefine(Window.prototype, eventNames)
+
+for (const prototype of eventElementPrototypes)
+  undefine(prototype, eventNames)
+
 eventNames.forEach(name => {
   const type = name.slice(2)
   define(EventTarget.prototype, {
@@ -1015,8 +1126,8 @@ function GM_fetch(url, opt = { responseType: 'document' }) {
   })
 }
 
-/*=============== other.js ===============*/
-async function loadPages(selTarget, selImages, selPagination, fnMove, fnUrl, fnNum, fnTarget, checkNewImages = false) {
+/*=============== page.js ===============*/
+async function loadPages(selTarget, selImages, selPagination, fnMove, fnUrl, fnNum, fnTarget, fnPageAdded, checkNewImages = false) {
   if (fnUrl === undefined || fnNum === undefined)
     urls = $$(selPagination).map(s => s.href).unique()
   else
@@ -1038,14 +1149,65 @@ async function loadPages(selTarget, selImages, selPagination, fnMove, fnUrl, fnN
       fnTarget().after(...newImages)
     else
       target.append(...newImages)
+
+    fnPageAdded?.({
+      addedCount: newImages.length,
+      totalCount: $$(selImages).length,
+    })
   }
   toast('Loading complete', `${urls.length} pages, ${count} => ${$$(selImages).length} images`)
-  gallery(selImages)
-  progress()
+
+  //gallery(selImages)
+  //progress()
+}
+function imagePage(sel, root) {
+  return {
+    get images() {
+      return $$(sel, root)
+    },
+    get index() {
+      if (this.isAbove)
+        return 0
+      if (this.isBelow)
+        return this.total - 1
+      return this.images.findIndex(s => s == this.current)
+    },
+    get total() {
+      return this.images.length
+    },
+    get current() {
+      return this.images.find(s => s.rect.y >= 0 && s.rect.y < 1)
+    },
+    get next() {
+      return this.images.find(s => s.rect.y >= 1)
+    },
+    get prev() {
+      return this.images.toReversed().find(s => s.rect.y < 0)
+    },
+    get isAbove() {
+      return this.images[0].rect.y >= 0
+    },
+    get isBelow() {
+      return this.images.last.rect.y <= 0
+    },
+    scrollWatcher(fn) {
+      let prevState = this.current
+      return scr.addEventListener('scroll', e => {
+        const state = this.current
+        if (state != prevState)
+          fn({
+            index: this.index,
+            total: this.total,
+          })
+
+        prevState = state
+      })
+    },
+  }
 }
 function gallery(sel, root, forceStopOtherHandlers = false) {
-  const images = $$(sel, root ?? document)
   if (isMobile()) {
+    const images = $$(sel, root)
     images.forEach((el, i) => {
       el.onclick = e => {
         if (images[0].rect.y > 0)
@@ -1058,41 +1220,34 @@ function gallery(sel, root, forceStopOtherHandlers = false) {
     })
   }
   else {
-    const image = {
-      get current() {
-        return images.find(s => s.rect.y >= 0 && s.rect.y < 1)
-      },
-      get next() {
-        return images.find(s => s.rect.y >= 1)
-      },
-      get prev() {
-        return images.toReversed().find(s => s.rect.y < 0)
-      },
-      get isAbove() {
-        return images[0].rect.y >= 0
-      },
-      get isBelow() {
-        return images.last.rect.y <= 0
-      },
-    }
+    const imageHandle = imagePage(sel, root)
 
     if (forceStopOtherHandlers)
       events('keydown').forEach(s => s.unlisten())
 
-    window.addEventListener('keydown', e => {
-      if (e.key == 'ArrowRight') {
-        if (image.isBelow)
+    const eventHandle = window.addEventListener('keydown', e => {
+      if (e.key == 'ArrowLeft') {
+        if (imageHandle.isAbove)
+          animScroll(0, -800, 400)
+        else if (imageHandle.isBelow)
           animScroll(0, 800, 400)
         else
-          image.next?.instantScroll()
+          imageHandle.prev?.instantScroll()
       }
-      else if (e.key == 'ArrowLeft') {
-        if (image.isAbove)
-          animScroll(0, -500, 250)
+      else if (e.key == 'ArrowRight') {
+        if (imageHandle.isAbove)
+          animScroll(0, -800, 400)
+        else if (imageHandle.isBelow)
+          animScroll(0, 800, 400)
         else
-          image.prev?.instantScroll()
+          imageHandle.next?.instantScroll()
       }
     }, { capture: true })
+
+    return {
+      imageHandle,
+      eventHandle,
+    }
   }
 }
 function progress() {
@@ -1161,15 +1316,6 @@ function isMobile() {
 }
 
 /*=============== node.js ===============*/
-function* textnodes() {
-  const it = document.createNodeIterator(document.body, NodeFilter.SHOW_TEXT)
-  let node = it.nextNode()
-  while (node) {
-    if (/\S/.test(node.textContent))
-      yield node
-    node = it.nextNode()
-  }
-}
 
 /*=============== debug.js ===============*/
 async function scripts(root) {
@@ -1234,12 +1380,14 @@ function toast(title, text, duration) {
   box-shadow: #00000060 0px 3px 8px, #00000080 0px 3px 16px;
 }
 #monkey #toast .title {
-  text-transform: uppercase;
+  font-family: initial;
   font-size: .85rem;
   font-weight: 700;
   line-height: 1.1667;
+  text-transform: uppercase;
 }
 #monkey #toast .text {
+  font-family: initial;
   font-size: 1.1rem;
   font-weight: 400;
   line-height: 1.3333;
@@ -1260,12 +1408,42 @@ function toast(title, text, duration) {
 
   el.animate([{ translate: '0 100%' }, { translate: '0 0' }], { duration: 150, iterations: 1 })
   setTimeout(() => el.animate([{ translate: '0 0' }, { translate: '0 100%' }], { duration: 150, iterations: 1 }), duration - 150)
-  setTimeout(() => el.remove(), duration)
+  setTimeout(() => shadowContainer.remove(), duration)
 
   el.onclick = e => {
     el.animate([{ translate: '0 0' }, { translate: '0 100%' }], { duration: 150, iterations: 1 })
-    setTimeout(() => el.remove(), 150)
+    setTimeout(() => shadowContainer.remove(), 150)
   }
+}
+
+/*=============== style.js ===============*/
+function style(css) {
+  let el = elem('style#monkey-style', css)
+  head.append(el)
+
+  window.addEventListener('keydown', e => {
+    if (e.ctrlKey && e.code == 'Numpad0') {
+      if (el.isMounted)
+        el.remove()
+      else
+        head.append(el)
+    }
+  })
+}
+function usualStyleViolations() {
+  return $$('*')
+    .map(s => {
+      return {
+        element: s,
+        style: s.compStyle,
+      }
+    })
+    .filter(s => s.style.position == 'fixed'
+      || s.style.position == 'sticky'
+      || s.style.position == 'absolute'
+      || s.style.opacity.toInt() < 1
+      || s.style.transform != 'none'
+    )
 }
 
 /*=============== tagged-template.js ===============*/
@@ -1287,79 +1465,132 @@ function regex(flag, ...args) {
     return new RegExp(raw(strings, ...args), flag)
   }
 }
+function html(strings, ...rest) {
+  if (isstr(strings))
+    return new DOMParser().parseFromString(strings, 'text/html')
+  return frag`${String.raw(strings, ...rest)}`
+  //return assign(String.raw(strings, ...rest), { html: true })
+  //return `\ue000${String.raw(strings, ...rest)}\ue000`
+  //return elem('div').set(el => el.outerHTML = String.raw(strings, ...rest))
+}
 
 /*=============== extend-more.js ===============*/
-extend(globalThis, {
-  arr,
-  ent,
-  obj,
-  has,
-  str,
-  equal,
-  range,
-  frag,
-  html,
-  serialize,
-  keys,
-  list,
-  call,
-  char,
-  desc,
-  define,
-  undefine,
-  extend,
-  time,
-  passed,
-  assign,
-  type,
-  is,
-  whatis,
-  isnull,
-  isundef,
-  isarr,
-  isiter,
-  isgen,
-  isfn,
-  isasynciter,
-  isasyncgen,
-  isasyncfn,
-  isobj,
-  isstr,
-  isnum,
-  isbool,
-  issym,
-  isbigint,
-  isnullobj,
-  isstrobj,
-  isnumobj,
-  isboolobj,
-  isprim,
-  isdesc,
-  isdescs,
-  isnode,
-  iselem,
-  isregex,
-  istagged,
-  isctor,
-  $,
-  $$,
-  elem,
-  $$style,
-  $a,
-  $$a,
-  $aa,
-  $$aa,
-  openStore,
-  events,
-  loadPages,
-  gallery,
-  progress,
-  stopExecute,
-  font,
-  isMobile,
-  textnodes,
-  toast,
-  imp,
-  raw,
-  regex,
-})
+function defineGlobals(target) {
+  extend(target, {
+    MONKEY_VERSION,
+
+    //--------------- helpers.js ---------------
+    arr,
+    ent,
+    obj,
+    has,
+    str,
+    equal,
+    range,
+    frag,
+    serialize,
+    keys,
+    list,
+    getters,
+    call,
+    char,
+    desc,
+    define,
+    undefine,
+    extend,
+    assign,
+
+    //--------------- time.js ---------------
+    time,
+    passed,
+
+    //--------------- type.js ---------------
+    type,
+    is,
+    whatis,
+    isnull,
+    isundef,
+    isarr,
+    isiter,
+    isgen,
+    isfn,
+    isasynciter,
+    isasyncgen,
+    isasyncfn,
+    isobj,
+    isstr,
+    isnum,
+    isbool,
+    issym,
+    isbigint,
+    isnullobj,
+    isstrobj,
+    isnumobj,
+    isboolobj,
+    isprim,
+    isdesc,
+    isdescs,
+    isnode,
+    iselem,
+    isregex,
+    istagged,
+    isctor,
+
+    //--------------- dom.js ---------------
+    $,
+    $$,
+    elem,
+    $$style,
+    $a,
+    $$a,
+    $aa,
+    $$aa,
+    parentNodes,
+    sharedNode,
+
+    //--------------- tools.js ---------------
+    openStore,
+
+    //--------------- events.js ---------------
+    events,
+
+    //--------------- page.js ---------------
+    loadPages,
+    imagePage,
+    gallery,
+    progress,
+    stopExecute,
+
+    //--------------- font.js ---------------
+    font,
+    isMobile,
+
+    //--------------- node.js ---------------
+    
+    //--------------- debug.js ---------------
+    scripts,
+    analyze,
+    logImportant,
+
+    //--------------- ui.js ---------------
+    toast,
+
+    //--------------- style.js ---------------
+    style,
+    usualStyleViolations,
+
+    //--------------- tagged-template.js ---------------
+    imp,
+    raw,
+    regex,
+    html,
+
+    //--------------- extend-more.js ---------------
+    defineGlobals,
+    exposeUnsafe,
+  })
+}
+function exposeUnsafe() {
+  defineGlobals(unsafeWindow)
+}
+defineGlobals(window)
