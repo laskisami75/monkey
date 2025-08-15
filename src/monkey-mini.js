@@ -1,9 +1,23 @@
-const MONKEY_VERSION = 56
+const MONKEY_VERSION = 57
 
 /*=============== extend.js ===============*/
 define(Symbol, {
   extensions: Symbol.extensions ?? Symbol('extensions'),
 })
+/*forceDefine(Array.prototype, {
+  unique(fn = s => s) {
+    const output = []
+    const seen = new Set()
+    for (const item of this) {
+      const id = fn(item)
+      if (!seen.has(id)) {
+        output.push(item)
+        seen.add(id)
+      }
+    }
+    return output
+  },
+})*/
 extend(String.prototype, {
   toInt() {
     return parseInt(this.match(/-?\d+/)[0])
@@ -700,7 +714,8 @@ function keys(...args) {
 }
 function list(target) {
   const output = []
-  for (const key of keys(target)) {
+  //for (const key of keys(target)) {
+  for (const key of (isprim(target) ? [] : Reflect.ownKeys(target))) {
     if (isobj(target[key]))
       output.push(assign({ key, name: key }, target[key]))
     else
@@ -729,6 +744,9 @@ function define(target, defines) {
     return target
   if (list(Object.getOwnPropertyDescriptors(defines)).every(s => isdesc(s.value)))
     return Object.defineProperties(target, defines)
+  return Object.defineProperties(target, Object.getOwnPropertyDescriptors(defines))
+}
+function forceDefine(target, defines) {
   return Object.defineProperties(target, Object.getOwnPropertyDescriptors(defines))
 }
 function undefine(target, keys) {
@@ -1496,6 +1514,7 @@ function defineGlobals(target) {
     char,
     desc,
     define,
+    forceDefine,
     undefine,
     extend,
     assign,
