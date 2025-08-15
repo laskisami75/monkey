@@ -1,624 +1,7 @@
-const MONKEY_VERSION = 59
+const MONKEY_VERSION = 60
 
 /*=============== extend.js ===============*/
-define(Symbol, {
-  extensions: Symbol.extensions ?? Symbol('extensions'),
-})
-extend(String.prototype, {
-  toInt() {
-    return parseInt(this.match(/-?\d+/)[0])
-  },
-  toFloat() {
-    return parseFloat(this.match(/-?\d*\.?\d+/)[0])
-  },
-  toNumbers() {
-    return arr(this.matchAll(/(-?\d*\.?\d+)/g)).map(s => parseFloat(s))
-  },
-  test(re) {
-    return re.test(this)
-  },
-  mask(re, opt = {}) {
-    return this.matchAll(re)
-      .reduce((s, n, i) => {
-        s.str = s.str.replace(n[0], char(0xe000 + i))
-        s.rep.push(assign(n, opt, { placeholder: char(0xe000 + i) }))
-        return s
-      },
-      {
-        str: this,
-        rec: false,
-        rep: [],
-        unmask(str) {
-          str ??= this.str
-          if (this.rec)
-            this.rep = this.rep.map(reps => assign(reps, { 0: this.rep.reduce((s, n) => s.replaceAll(n.placeholder, n[0]), reps[0]) }))
-          if (isarr(str))
-            return str.map(s => this.rep.reduce((s, n, i) => s.replaceAll(n.placeholder, n[0]), s))
-          return this.rep.reduce((s, n, i) => s.replaceAll(n.placeholder, n[0]), str)
-        },
-        mask(re, opt = {}) {
-          const parts = this.str.split(/\p{Co}/gu)
-          parts.forEach(part => {
-            part.matchAll(re)
-            .forEach(s => {
-              this.str = this.str.replace(s[0], char(0xe000 + this.rep.length))
-              this.rep.push(assign(s, opt, { placeholder: char(0xe000 + this.rep.length) }))
-            })
-          })
-          this.rep = [...this.rep].sort((a, b) => a.index - b.index)
-          return this
-        },
-        recurse(re, opt = {}) {
-          this.rec = true
-          let ma = arr(this.str.matchAll(re))
-          while (ma.length > 0) {
-            ma.forEach(s => {
-              this.str = this.str.replace(s[0], char(0xe000 + this.rep.length))
-              this.rep.push(assign(s, opt, { placeholder: char(0xe000 + this.rep.length) }))
-            })
-            ma = arr(this.str.matchAll(re))
-          }
-          this.rep = [...this.rep].sort((a, b) => a.index - b.index)
-          return this
-        },
-        simplify() {
-          const keep = []
-          const discard = []
-          for (const s of this.rep) {
-            if (this.str.indexOf(s.placeholder) == -1)
-              discard.push(s)
-            else
-              keep.push(s)
-          }
-          this.rep = keep.map(reps => assign(reps, { 0: discard.reduce((s, n) => s.replaceAll(n.placeholder, n[0]), reps[0]) }))
-        },
-      })
-  },
-  maskParen(open) {
-    const matching = {
-      '(': ')',
-      '[': ']',
-      '{': '}',
-    }
-    const close = matching[open]
-    
-    const rep = []
-    
-    let i = 0
-    while (i != -1) {
-      const start = this.indexOf(open, i)
-      if (start == -1)
-        break
-      
-      let depth = 1
-      i = start
-      while (depth > 0) {
-        const a = this.indexOf(open, i+1)
-        const b = this.indexOf(close, i+1)
-        if (a < b && a != -1) {
-          depth++
-          i = a
-        }
-        else {
-          depth--
-          i = b
-        }
-      }
-      rep.push(this.slice(start, i+1))
-    }
-    return {
-      str: rep.reduce((s, n, i) => s.replace(n, char(0xe000 + i)), this),
-      rep,
-      unmask(str) {
-        str ??= this.str
-        if (isarr(str))
-          return str.map(s => this.rep.reduce((s, n, i) => s.replace(char(0xe000 + i), n), s))
-        return this.rep.reduce((s, n, i) => s.replace(char(0xe000 + i), n), str)
-      },
-    }
-  },
-  trimStart(re = /\s+/) {
-    if (isstr(re))
-      re = regex`^(?:${RegExp.escape(re)})`
-    else
-      re = regex`^${re.source.replace(/^\^/, '')}`
-    return this.replace(re, '')
-  },
-  trimEnd(re = /\s+/) {
-    if (isstr(re))
-      re = regex`(?:${RegExp.escape(re)})$`
-    else
-      re = regex`${re.source.replace(/\$$/, '')}$`
-    return this.replace(re, '')
-  },
-  trim(a, b) {
-    if (a === undefined)
-      a = /\s+/
-    if (b === undefined)
-      b = a
-    return this.trimStart(a).trimEnd(b)
-  },
-  dehyphenate() {
-    return this.replaceAll(/-[^-]/g, m => m.slice(1).toUpperCase())
-  },
-  prevIndex(re, start) {
-    if (start === undefined)
-      start = this.length
-    if (isstr(re))
-      re = regex('g')`${RegExp.escape(re)}`
 
-    const array = arr(this.slice(0, start).matchAll(re))
-    if (array.length == 0)
-      return -1
-    return array.last.index
-  },
-  nextIndex(re, start) {
-    if (start === undefined)
-      start = 0
-    if (isstr(re))
-      re = regex('g')`${RegExp.escape(re)}`
-    
-    const array = arr(this.slice(0, start).matchAll(re))
-    if (array.length == 0)
-      return -1
-    return array[0].index
-  },
-  matchLines(re) {
-    return arr(this.matchAll(re)).map(s => {
-      const startIndex = this.prevIndex('\n', s.index + s[0].length) + 1
-      const endIndex = this.nextIndex('\n', s.index)
-      return {
-        startIndex,
-        endIndex,
-        text: this.slice(startIndex, endIndex),
-      }
-    })
-  },
-  nthLine(index) {
-    let line = 1
-    for (let i = 0; i < index; i++) {
-      if (this[i] == '\n')
-        line++
-    }
-    return line
-  },
-})
-extend(Array.prototype, {
-  unique(fn) {
-    return unique(this, fn)
-  },
-  indexed() {
-    return this.map((s, i) => [s, i])
-  },
-  linked() {
-    return this.map((s, i) => assign(s, {
-      prev: i == 0 ? null : this[i - 1],
-      next: i == this.length - 1 ? null : this[i + 1],
-    }))
-  },
-  filter(fn = s => s) {
-    return this._filter(fn)
-  },
-  min(fn = s => s) {
-    return this.reduce((s, n) => fn(s) < fn(n) ? s : n)
-  },
-  max(fn = s => s) {
-    return this.reduce((s, n) => fn(s) > fn(n) ? s : n)
-  },
-  minIndex(fn = s => s) {
-    return this.reduce((s, n, i) => fn(this[s]) < fn(n) ? s : i, 0)
-  },
-  maxIndex(fn = s => s) {
-    return this.reduce((s, n, i) => fn(this[s]) > fn(n) ? s : i, 0)
-  },
-  count(fn) {
-    let count = 0
-    for (let i = 0; i < this.length; i++) {
-      if (fn(this[i], i, this))
-        count++
-    }
-    return count
-  },
-  clear() {
-    this.splice(0, this.length)
-    return this
-  },
-  while(fn = s => s) {
-    const output = []
-    for (let i = 0; i < this.length; i++) {
-      if (!fn(this[i], i, this))
-        return output
-
-      output.push(this[i])
-    }
-    return output
-  },
-  remove(items) {
-    if (isfn(items)) {
-      for (const item of this.filter(items))
-        this.remove(item)
-      return this
-    }
-    else if (isarr(items)) {
-      for (const item of items)
-        this.remove(item)
-      return this
-    }
-    else {
-      const index = this.indexOf(items)
-      if (index != -1)
-        this.splice(index, 1)
-      return this
-    }
-  },
-  get first() {
-    return this[0]
-  },
-  set first(value) {
-    this[0] = value
-  },
-  get last() {
-    return this[this.length-1]
-  },
-  set last(value) {
-    this[this.length-1] = value
-  },
-})
-extend(Iterator.prototype, {
-  filter(fn = s => s) {
-    return this._filter(fn)
-  },
-})
-extend(Window.prototype, {
-  get doc() {
-    return this.document
-  },
-  get scr() {
-    return this.document.scrollingElement
-  },
-  get docElem() {
-    return this.document.documentElement
-  },
-  get head() {
-    return this.document.head
-  },
-  get body() {
-    return this.document.body
-  },
-  animScroll(x, y, duration) {
-    let startTime
-    const originX = document.scrollingElement.scrollLeft
-    const originY = document.scrollingElement.scrollTop
-    const targetX = document.scrollingElement.scrollLeft + x
-    const targetY = document.scrollingElement.scrollTop + y
-    const rightward = originX < targetX
-    const downward = originY < targetY
-    function step(currentTime) {
-      startTime ??= currentTime
-
-      const elapsed = currentTime - startTime
-      let currentX = originX + (targetX - originX) / duration * elapsed
-      let currentY = originY + (targetY - originY) / duration * elapsed
-      if ((rightward && currentX > targetX) || (!rightward && targetX > currentX))
-        currentX = targetX
-      if ((downward && currentY > targetY) || (!downward && targetY > currentY))
-        currentY = targetY
-      document.scrollingElement.scrollLeft = currentX
-      document.scrollingElement.scrollTop = currentY
-
-      if (currentX != targetX || currentY != targetY)
-        requestAnimationFrame(step)
-    }
-    requestAnimationFrame(step)
-  },
-})
-extend(Document.prototype, {
-  append(...args) {
-    return call(domInsert, this, this._append, args)
-  },
-  prepend(...args) {
-    return call(domInsert, this, this._prepend, args)
-  },
-  replaceChildren(...args) {
-    return call(domInsert, this, this._replaceChildren, args)
-  },
-})
-extend(Element.prototype, {
-  get rect() {
-    return this.getBoundingClientRect()
-  },
-  get compStyle() {
-    if (this.computedStyleMap) {
-      const comp = this.computedStyleMap()
-      return obj(arr(comp).map(([k, v]) => [k, v[0].toString()]))
-    }
-    else {
-      const comp = getComputedStyle(this)
-      return obj(arr(comp).map(s => [s, comp[s]]))
-    }
-  },
-  get first() {
-    return this.firstElementChild
-  },
-  get last() {
-    return this.lastElementChild
-  },
-  get prev() {
-    return this.previousElementSibling
-  },
-  get next() {
-    return this.nextElementSibling
-  },
-  instantScroll() {
-    this.scrollIntoView({ behavior: 'instant', block: 'end' })
-  },
-  animScroll(x, y, duration) {
-    let startTime
-    const distanceX = x + this.rect.x
-    const distanceY = y + this.rect.y
-    const originX = document.scrollingElement.scrollLeft
-    const originY = document.scrollingElement.scrollTop
-    const targetX = document.scrollingElement.scrollLeft + distanceX
-    const targetY = document.scrollingElement.scrollTop + distanceY
-    const rightward = originX < targetX
-    const downward = originY < targetY
-    function step(currentTime) {
-      startTime ??= currentTime
-
-      const elapsed = currentTime - startTime
-      let currentX = originX + (targetX - originX) / duration * elapsed
-      let currentY = originY + (targetY - originY) / duration * elapsed
-      if ((rightward && currentX > targetX) || (!rightward && targetX > currentX))
-        currentX = targetX
-      if ((downward && currentY > targetY) || (!downward && targetY > currentY))
-        currentY = targetY
-      document.scrollingElement.scrollLeft = currentX
-      document.scrollingElement.scrollTop = currentY
-
-      if (currentX != targetX || currentY != targetY)
-        requestAnimationFrame(step)
-    }
-    requestAnimationFrame(step)
-  },
-  append(...args) {
-    return call(domInsert, this, this._append, args)
-  },
-  prepend(...args) {
-    return call(domInsert, this, this._prepend, args)
-  },
-  replaceChildren(...args) {
-    return call(domInsert, this, this._replaceChildren, args)
-  },
-  set(fn) {
-    call(fn, this, this)
-    return this
-  },
-  get uniqueSelector() {
-    function* generateSelectors(node) {
-      const tag = node.localName
-      yield tag
-      
-      if (node.id)
-        yield `${tag}#${node.id}`
-
-      yield* arr(node.classList)
-        .map(s => `${tag}.${s}`)
-        .sort((a, b) => $$(sel + a, node).length - $$(sel + b, node).length)
-      
-      yield* arr(node.attributes)
-        .filter(s => s.name != 'class' && s.name != 'id')
-        .map(s => `${tag}[${s.name}="${s.value}"]`)
-      
-      const deepChildren = node.nodes.filter(s => s.nodeType == Node.ELEMENT_NODE)
-      yield* deepChildren
-        .filter(s => s.id)
-        .map(s => s.parent == node ? `${tag}:has(> #${s.id})` : `${tag}:has(#${s.id})`)
-      
-      yield* deepChildren
-        .flatMap(el => arr(el.classList).map(s => ({ element: el, className: s })))
-        .map(s => s.element.parent == node ? `${tag}:has(> .${s.className})` : `${tag}:has(.${s.className})`)
-      
-      yield* deepChildren
-        .flatMap(el => arr(el.attributes).map(s => ({ element: el, selector: `[${s.name}="${s.value}"]` })))
-        .map(s => s.element.parent == node ? `${tag}:has(> ${s.selector})` : `${tag}:has(${s.selector})`)
-
-      if (!node.prev)
-        yield `${tag}:first-child`
-      if (!node.next)
-        yield `${tag}:last-child`
-      yield `${tag}:nth-child(${arr(node.parent.children).indexOf(node) + 1})`
-    }
-    for (const selector of generateSelectors(this)) {
-      if ($$(selector).length == 1)
-        return selector
-    }
-  },
-})
-extend(DocumentFragment.prototype, {
-  get innerHTML() {
-    return serialize(this)
-      .replaceAll(' xmlns="http://www.w3.org/1999/xhtml"', '')
-  },
-  set innerHTML(value) {
-    const el = elem('template')
-    el.innerHTML = value
-    this.replaceChildren(el.content)
-  },
-  append(...args) {
-    return call(domInsert, this, this._append, args)
-  },
-  prepend(...args) {
-    return call(domInsert, this, this._prepend, args)
-  },
-  replaceChildren(...args) {
-    return call(domInsert, this, this._replaceChildren, args)
-  },
-  insertAdjacentHTML(where, text) {
-    if (where == 'beforebegin')
-      this.parent.prepend(document.createRange().createContextualFragment(text))
-    if (where == 'afterbegin')
-      this.prepend(document.createRange().createContextualFragment(text))
-    if (where == 'beforeend')
-      this.append(document.createRange().createContextualFragment(text))
-    if (where == 'afterend')
-      this.parent.append(document.createRange().createContextualFragment(text))
-  },
-})
-extend(Node.prototype, {
-  get text() {
-    return this.textContent
-  },
-  set text(value) {
-    this.textContent = value
-  },
-  get parent() {
-    return this.parentElement
-  },
-  get children() {
-    return arr(this.childNodes).filter(s => s.isElementNode)
-  },
-  get prev() {
-    let node = this.previousSibling
-    while (node && !node.isElementNode)
-      node.previousSibling
-    return node
-  },
-  get next() {
-    let node = this.nextSibling
-    while (node && !node.isElementNode)
-      node.nextSibling
-    return node
-  },
-  get isElementNode() {
-    return this.nodeType == Node.ELEMENT_NODE
-  },
-  get isMounted() {
-    let node = this
-    while (node.parentNode)
-      node = node.parentNode
-    return node == document
-  },
-  get leafnodes() {
-    return arr(document.createNodeIterator(this, NodeFilter.SHOW_ELEMENT))
-      .filter(s => s.children.length == 0)
-  },
-  get textnodes() {
-    return arr(document.createNodeIterator(this, NodeFilter.SHOW_TEXT))
-      .filter(s => /\S/.test(s.text))
-  },
-  get nodes() {
-    return arr(document.createNodeIterator(this, NodeFilter.SHOW_ALL))
-  },
-  /*get leafNodes() {
-    return this.recurseChildren().filter(s => s.childNodes.length == 0)
-  },
-  recurseChildren() {
-    const output = []
-    function traverse(node) {
-      output.push(node)
-      for (const child of node.childNodes)
-        traverse(child)
-    }
-    traverse(this)
-    return output
-  },*/
-})
-extend(NodeIterator.prototype, {
-  *[Symbol.iterator]() {
-    let n = this.nextNode()
-    while (n) {
-      yield n
-      n = this.nextNode()
-    }
-  },
-})
-extend(Image.prototype, {
-  reload() {
-    if (this.isLoaded) {
-      return new Promise(resolve => {
-        this.onload = e => resolve(this)
-        this.src = `${this.src.replace(/\?.+$/, '')}?${Date.now()}`
-      })
-    }
-  },
-  get isLoaded() {
-    return this.complete && this.naturalWidth > 0 && this.naturalHeight > 0
-  },
-})
-extend(EventTarget, {
-  targets: new Map(),
-})
-extend(EventTarget.prototype, {
-  addEventListener(type, handler, options) {
-    const events = EventTarget.targets.get(this) ?? EventTarget.targets.set(this, []).get(this)
-    const target = this
-    const state = {
-      type,
-      handler,
-      options,
-      method: 'add',
-      unlisten() {
-        target._removeEventListener(this.type, this.handler, this.options)
-      },
-    }
-    events.push(state)
-
-    this._addEventListener(type, handler, options)
-    return state
-  },
-  removeEventListener(type, handler, options) {
-    const events = EventTarget.targets.get(this)
-    if (events) {
-      const params = events.filter(s => s.type == type && s.handler == handler && equal(s.options, options))
-      events.remove(params)
-
-      for (const param of params)
-        this._removeEventListener(param.type, param.handler, param.options)
-    }
-  },
-  dispatch(type, props) {
-    props = assign({ bubbles: true }, props)
-
-    this.dispatchEvent(new (class extends Event {
-      constructor() {
-        super(type, props)
-        define(this, props)
-      }
-    })())
-  },
-  listen(type, handler, options) {
-    const unlisten = () => this._removeEventListener(type, handler, options)
-    function delegate(e) {
-      return handler(define(e, { unlisten }))
-    }
-
-    const events = EventTarget.targets.get(this) ?? EventTarget.targets.set(this, []).get(this)
-    const target = this
-    const state = {
-      type,
-      handler: delegate,
-      options,
-      method: 'listen',
-      unlisten() {
-        target._removeEventListener(this.type, this.handler, this.options)
-      },
-    }
-    events.push(state)
-
-    this._addEventListener(type, delegate, options)
-    return state
-  },
-  unlisten(type) {
-    const events = EventTarget.targets.get(this)
-    if (events) {
-      const params = isstr(type) ? events.filter(s => s.type == type) : (isfn(type) ? events.filter(s => s.handler == type) : [])
-      events.remove(params)
-
-      for (const param of params)
-        this._removeEventListener(param.type, param.handler, param.options)
-    }
-  },
-})
 
 /*=============== internal.js ===============*/
 function unique(array, fn = s => s) {
@@ -1153,8 +536,7 @@ async function loadPages(selTarget, selImages, selPagination, fnMove, fnUrl, fnN
     let newImages = $$(selImages, dom)
       .filter(el => !checkNewImages || isNewImage(el))
       .map(el => fnMove ? fnMove(el) : el)
-    
-    newImages.forEach(s => document.adoptNode(s))
+      .map(el => document.adoptNode(el))
     
     if (fnTarget)
       fnTarget().after(...newImages)
@@ -1487,8 +869,630 @@ function html(strings, ...rest) {
 }
 
 /*=============== extend-more.js ===============*/
-function defineGlobals(target) {
-  extend(target, {
+function defineGlobalExtensions(targetWindow) {
+  targetWindow ??= window
+  define(targetWindow.Symbol, {
+    extensions: targetWindow.Symbol.extensions ?? Symbol('extensions'),
+  })
+  extend(targetWindow.String.prototype, {
+    toInt() {
+      return parseInt(this.match(/-?\d+/)[0])
+    },
+    toFloat() {
+      return parseFloat(this.match(/-?\d*\.?\d+/)[0])
+    },
+    toNumbers() {
+      return arr(this.matchAll(/(-?\d*\.?\d+)/g)).map(s => parseFloat(s))
+    },
+    test(re) {
+      return re.test(this)
+    },
+    mask(re, opt = {}) {
+      return this.matchAll(re)
+        .reduce((s, n, i) => {
+          s.str = s.str.replace(n[0], char(0xe000 + i))
+          s.rep.push(assign(n, opt, { placeholder: char(0xe000 + i) }))
+          return s
+        },
+        {
+          str: this,
+          rec: false,
+          rep: [],
+          unmask(str) {
+            str ??= this.str
+            if (this.rec)
+              this.rep = this.rep.map(reps => assign(reps, { 0: this.rep.reduce((s, n) => s.replaceAll(n.placeholder, n[0]), reps[0]) }))
+            if (isarr(str))
+              return str.map(s => this.rep.reduce((s, n, i) => s.replaceAll(n.placeholder, n[0]), s))
+            return this.rep.reduce((s, n, i) => s.replaceAll(n.placeholder, n[0]), str)
+          },
+          mask(re, opt = {}) {
+            const parts = this.str.split(/\p{Co}/gu)
+            parts.forEach(part => {
+              part.matchAll(re)
+              .forEach(s => {
+                this.str = this.str.replace(s[0], char(0xe000 + this.rep.length))
+                this.rep.push(assign(s, opt, { placeholder: char(0xe000 + this.rep.length) }))
+              })
+            })
+            this.rep = [...this.rep].sort((a, b) => a.index - b.index)
+            return this
+          },
+          recurse(re, opt = {}) {
+            this.rec = true
+            let ma = arr(this.str.matchAll(re))
+            while (ma.length > 0) {
+              ma.forEach(s => {
+                this.str = this.str.replace(s[0], char(0xe000 + this.rep.length))
+                this.rep.push(assign(s, opt, { placeholder: char(0xe000 + this.rep.length) }))
+              })
+              ma = arr(this.str.matchAll(re))
+            }
+            this.rep = [...this.rep].sort((a, b) => a.index - b.index)
+            return this
+          },
+          simplify() {
+            const keep = []
+            const discard = []
+            for (const s of this.rep) {
+              if (this.str.indexOf(s.placeholder) == -1)
+                discard.push(s)
+              else
+                keep.push(s)
+            }
+            this.rep = keep.map(reps => assign(reps, { 0: discard.reduce((s, n) => s.replaceAll(n.placeholder, n[0]), reps[0]) }))
+          },
+        })
+    },
+    maskParen(open) {
+      const matching = {
+        '(': ')',
+        '[': ']',
+        '{': '}',
+      }
+      const close = matching[open]
+      
+      const rep = []
+      
+      let i = 0
+      while (i != -1) {
+        const start = this.indexOf(open, i)
+        if (start == -1)
+          break
+        
+        let depth = 1
+        i = start
+        while (depth > 0) {
+          const a = this.indexOf(open, i+1)
+          const b = this.indexOf(close, i+1)
+          if (a < b && a != -1) {
+            depth++
+            i = a
+          }
+          else {
+            depth--
+            i = b
+          }
+        }
+        rep.push(this.slice(start, i+1))
+      }
+      return {
+        str: rep.reduce((s, n, i) => s.replace(n, char(0xe000 + i)), this),
+        rep,
+        unmask(str) {
+          str ??= this.str
+          if (isarr(str))
+            return str.map(s => this.rep.reduce((s, n, i) => s.replace(char(0xe000 + i), n), s))
+          return this.rep.reduce((s, n, i) => s.replace(char(0xe000 + i), n), str)
+        },
+      }
+    },
+    trimStart(re = /\s+/) {
+      if (isstr(re))
+        re = regex`^(?:${RegExp.escape(re)})`
+      else
+        re = regex`^${re.source.replace(/^\^/, '')}`
+      return this.replace(re, '')
+    },
+    trimEnd(re = /\s+/) {
+      if (isstr(re))
+        re = regex`(?:${RegExp.escape(re)})$`
+      else
+        re = regex`${re.source.replace(/\$$/, '')}$`
+      return this.replace(re, '')
+    },
+    trim(a, b) {
+      if (a === undefined)
+        a = /\s+/
+      if (b === undefined)
+        b = a
+      return this.trimStart(a).trimEnd(b)
+    },
+    dehyphenate() {
+      return this.replaceAll(/-[^-]/g, m => m.slice(1).toUpperCase())
+    },
+    prevIndex(re, start) {
+      if (start === undefined)
+        start = this.length
+      if (isstr(re))
+        re = regex('g')`${RegExp.escape(re)}`
+
+      const array = arr(this.slice(0, start).matchAll(re))
+      if (array.length == 0)
+        return -1
+      return array.last.index
+    },
+    nextIndex(re, start) {
+      if (start === undefined)
+        start = 0
+      if (isstr(re))
+        re = regex('g')`${RegExp.escape(re)}`
+      
+      const array = arr(this.slice(0, start).matchAll(re))
+      if (array.length == 0)
+        return -1
+      return array[0].index
+    },
+    matchLines(re) {
+      return arr(this.matchAll(re)).map(s => {
+        const startIndex = this.prevIndex('\n', s.index + s[0].length) + 1
+        const endIndex = this.nextIndex('\n', s.index)
+        return {
+          startIndex,
+          endIndex,
+          text: this.slice(startIndex, endIndex),
+        }
+      })
+    },
+    nthLine(index) {
+      let line = 1
+      for (let i = 0; i < index; i++) {
+        if (this[i] == '\n')
+          line++
+      }
+      return line
+    },
+  })
+  extend(targetWindow.Array.prototype, {
+    unique(fn) {
+      return unique(this, fn)
+    },
+    indexed() {
+      return this.map((s, i) => [s, i])
+    },
+    linked() {
+      return this.map((s, i) => assign(s, {
+        prev: i == 0 ? null : this[i - 1],
+        next: i == this.length - 1 ? null : this[i + 1],
+      }))
+    },
+    filter(fn = s => s) {
+      return this._filter(fn)
+    },
+    min(fn = s => s) {
+      return this.reduce((s, n) => fn(s) < fn(n) ? s : n)
+    },
+    max(fn = s => s) {
+      return this.reduce((s, n) => fn(s) > fn(n) ? s : n)
+    },
+    minIndex(fn = s => s) {
+      return this.reduce((s, n, i) => fn(this[s]) < fn(n) ? s : i, 0)
+    },
+    maxIndex(fn = s => s) {
+      return this.reduce((s, n, i) => fn(this[s]) > fn(n) ? s : i, 0)
+    },
+    count(fn) {
+      let count = 0
+      for (let i = 0; i < this.length; i++) {
+        if (fn(this[i], i, this))
+          count++
+      }
+      return count
+    },
+    clear() {
+      this.splice(0, this.length)
+      return this
+    },
+    while(fn = s => s) {
+      const output = []
+      for (let i = 0; i < this.length; i++) {
+        if (!fn(this[i], i, this))
+          return output
+
+        output.push(this[i])
+      }
+      return output
+    },
+    remove(items) {
+      if (isfn(items)) {
+        for (const item of this.filter(items))
+          this.remove(item)
+        return this
+      }
+      else if (isarr(items)) {
+        for (const item of items)
+          this.remove(item)
+        return this
+      }
+      else {
+        const index = this.indexOf(items)
+        if (index != -1)
+          this.splice(index, 1)
+        return this
+      }
+    },
+    get first() {
+      return this[0]
+    },
+    set first(value) {
+      this[0] = value
+    },
+    get last() {
+      return this[this.length-1]
+    },
+    set last(value) {
+      this[this.length-1] = value
+    },
+  })
+  extend(targetWindow.Iterator.prototype, {
+    filter(fn = s => s) {
+      return this._filter(fn)
+    },
+  })
+  extend(targetWindow.Window.prototype, {
+    get doc() {
+      return this.document
+    },
+    get scr() {
+      return this.document.scrollingElement
+    },
+    get docElem() {
+      return this.document.documentElement
+    },
+    get head() {
+      return this.document.head
+    },
+    get body() {
+      return this.document.body
+    },
+    animScroll(x, y, duration) {
+      let startTime
+      const originX = document.scrollingElement.scrollLeft
+      const originY = document.scrollingElement.scrollTop
+      const targetX = document.scrollingElement.scrollLeft + x
+      const targetY = document.scrollingElement.scrollTop + y
+      const rightward = originX < targetX
+      const downward = originY < targetY
+      function step(currentTime) {
+        startTime ??= currentTime
+
+        const elapsed = currentTime - startTime
+        let currentX = originX + (targetX - originX) / duration * elapsed
+        let currentY = originY + (targetY - originY) / duration * elapsed
+        if ((rightward && currentX > targetX) || (!rightward && targetX > currentX))
+          currentX = targetX
+        if ((downward && currentY > targetY) || (!downward && targetY > currentY))
+          currentY = targetY
+        document.scrollingElement.scrollLeft = currentX
+        document.scrollingElement.scrollTop = currentY
+
+        if (currentX != targetX || currentY != targetY)
+          requestAnimationFrame(step)
+      }
+      requestAnimationFrame(step)
+    },
+  })
+  extend(targetWindow.Document.prototype, {
+    append(...args) {
+      return call(domInsert, this, this._append, args)
+    },
+    prepend(...args) {
+      return call(domInsert, this, this._prepend, args)
+    },
+    replaceChildren(...args) {
+      return call(domInsert, this, this._replaceChildren, args)
+    },
+  })
+  extend(targetWindow.Element.prototype, {
+    get rect() {
+      return this.getBoundingClientRect()
+    },
+    get compStyle() {
+      if (this.computedStyleMap) {
+        const comp = this.computedStyleMap()
+        return obj(arr(comp).map(([k, v]) => [k, v[0].toString()]))
+      }
+      else {
+        const comp = getComputedStyle(this)
+        return obj(arr(comp).map(s => [s, comp[s]]))
+      }
+    },
+    get first() {
+      return this.firstElementChild
+    },
+    get last() {
+      return this.lastElementChild
+    },
+    get prev() {
+      return this.previousElementSibling
+    },
+    get next() {
+      return this.nextElementSibling
+    },
+    instantScroll() {
+      this.scrollIntoView({ behavior: 'instant', block: 'end' })
+    },
+    animScroll(x, y, duration) {
+      let startTime
+      const distanceX = x + this.rect.x
+      const distanceY = y + this.rect.y
+      const originX = document.scrollingElement.scrollLeft
+      const originY = document.scrollingElement.scrollTop
+      const targetX = document.scrollingElement.scrollLeft + distanceX
+      const targetY = document.scrollingElement.scrollTop + distanceY
+      const rightward = originX < targetX
+      const downward = originY < targetY
+      function step(currentTime) {
+        startTime ??= currentTime
+
+        const elapsed = currentTime - startTime
+        let currentX = originX + (targetX - originX) / duration * elapsed
+        let currentY = originY + (targetY - originY) / duration * elapsed
+        if ((rightward && currentX > targetX) || (!rightward && targetX > currentX))
+          currentX = targetX
+        if ((downward && currentY > targetY) || (!downward && targetY > currentY))
+          currentY = targetY
+        document.scrollingElement.scrollLeft = currentX
+        document.scrollingElement.scrollTop = currentY
+
+        if (currentX != targetX || currentY != targetY)
+          requestAnimationFrame(step)
+      }
+      requestAnimationFrame(step)
+    },
+    append(...args) {
+      return call(domInsert, this, this._append, args)
+    },
+    prepend(...args) {
+      return call(domInsert, this, this._prepend, args)
+    },
+    replaceChildren(...args) {
+      return call(domInsert, this, this._replaceChildren, args)
+    },
+    set(fn) {
+      call(fn, this, this)
+      return this
+    },
+    get uniqueSelector() {
+      function* generateSelectors(node) {
+        const tag = node.localName
+        yield tag
+        
+        if (node.id)
+          yield `${tag}#${node.id}`
+
+        yield* arr(node.classList)
+          .map(s => `${tag}.${s}`)
+          .sort((a, b) => $$(sel + a, node).length - $$(sel + b, node).length)
+        
+        yield* arr(node.attributes)
+          .filter(s => s.name != 'class' && s.name != 'id')
+          .map(s => `${tag}[${s.name}="${s.value}"]`)
+        
+        const deepChildren = node.nodes.filter(s => s.nodeType == Node.ELEMENT_NODE)
+        yield* deepChildren
+          .filter(s => s.id)
+          .map(s => s.parent == node ? `${tag}:has(> #${s.id})` : `${tag}:has(#${s.id})`)
+        
+        yield* deepChildren
+          .flatMap(el => arr(el.classList).map(s => ({ element: el, className: s })))
+          .map(s => s.element.parent == node ? `${tag}:has(> .${s.className})` : `${tag}:has(.${s.className})`)
+        
+        yield* deepChildren
+          .flatMap(el => arr(el.attributes).map(s => ({ element: el, selector: `[${s.name}="${s.value}"]` })))
+          .map(s => s.element.parent == node ? `${tag}:has(> ${s.selector})` : `${tag}:has(${s.selector})`)
+
+        if (!node.prev)
+          yield `${tag}:first-child`
+        if (!node.next)
+          yield `${tag}:last-child`
+        yield `${tag}:nth-child(${arr(node.parent.children).indexOf(node) + 1})`
+      }
+      for (const selector of generateSelectors(this)) {
+        if ($$(selector).length == 1)
+          return selector
+      }
+    },
+  })
+  extend(targetWindow.DocumentFragment.prototype, {
+    get innerHTML() {
+      return serialize(this)
+        .replaceAll(' xmlns="http://www.w3.org/1999/xhtml"', '')
+    },
+    set innerHTML(value) {
+      const el = elem('template')
+      el.innerHTML = value
+      this.replaceChildren(el.content)
+    },
+    append(...args) {
+      return call(domInsert, this, this._append, args)
+    },
+    prepend(...args) {
+      return call(domInsert, this, this._prepend, args)
+    },
+    replaceChildren(...args) {
+      return call(domInsert, this, this._replaceChildren, args)
+    },
+    insertAdjacentHTML(where, text) {
+      if (where == 'beforebegin')
+        this.parent.prepend(document.createRange().createContextualFragment(text))
+      if (where == 'afterbegin')
+        this.prepend(document.createRange().createContextualFragment(text))
+      if (where == 'beforeend')
+        this.append(document.createRange().createContextualFragment(text))
+      if (where == 'afterend')
+        this.parent.append(document.createRange().createContextualFragment(text))
+    },
+  })
+  extend(targetWindow.Node.prototype, {
+    get text() {
+      return this.textContent
+    },
+    set text(value) {
+      this.textContent = value
+    },
+    get parent() {
+      return this.parentElement
+    },
+    get children() {
+      return arr(this.childNodes).filter(s => s.isElementNode)
+    },
+    get prev() {
+      let node = this.previousSibling
+      while (node && !node.isElementNode)
+        node.previousSibling
+      return node
+    },
+    get next() {
+      let node = this.nextSibling
+      while (node && !node.isElementNode)
+        node.nextSibling
+      return node
+    },
+    get isElementNode() {
+      return this.nodeType == Node.ELEMENT_NODE
+    },
+    get isMounted() {
+      let node = this
+      while (node.parentNode)
+        node = node.parentNode
+      return node == document
+    },
+    get leafnodes() {
+      return arr(document.createNodeIterator(this, NodeFilter.SHOW_ELEMENT))
+        .filter(s => s.children.length == 0)
+    },
+    get textnodes() {
+      return arr(document.createNodeIterator(this, NodeFilter.SHOW_TEXT))
+        .filter(s => /\S/.test(s.text))
+    },
+    get nodes() {
+      return arr(document.createNodeIterator(this, NodeFilter.SHOW_ALL))
+    },
+    /*get leafNodes() {
+      return this.recurseChildren().filter(s => s.childNodes.length == 0)
+    },
+    recurseChildren() {
+      const output = []
+      function traverse(node) {
+        output.push(node)
+        for (const child of node.childNodes)
+          traverse(child)
+      }
+      traverse(this)
+      return output
+    },*/
+  })
+  extend(targetWindow.NodeIterator.prototype, {
+    *[Symbol.iterator]() {
+      let n = this.nextNode()
+      while (n) {
+        yield n
+        n = this.nextNode()
+      }
+    },
+  })
+  extend(targetWindow.Image.prototype, {
+    reload() {
+      if (this.isLoaded) {
+        return new Promise(resolve => {
+          this.onload = e => resolve(this)
+          this.src = `${this.src.replace(/\?.+$/, '')}?${Date.now()}`
+        })
+      }
+    },
+    get isLoaded() {
+      return this.complete && this.naturalWidth > 0 && this.naturalHeight > 0
+    },
+  })
+  extend(targetWindow.EventTarget, {
+    targets: new Map(),
+  })
+  extend(targetWindow.EventTarget.prototype, {
+    addEventListener(type, handler, options) {
+      const events = EventTarget.targets.get(this) ?? EventTarget.targets.set(this, []).get(this)
+      const target = this
+      const state = {
+        type,
+        handler,
+        options,
+        method: 'add',
+        unlisten() {
+          target._removeEventListener(this.type, this.handler, this.options)
+        },
+      }
+      events.push(state)
+
+      this._addEventListener(type, handler, options)
+      return state
+    },
+    removeEventListener(type, handler, options) {
+      const events = EventTarget.targets.get(this)
+      if (events) {
+        const params = events.filter(s => s.type == type && s.handler == handler && equal(s.options, options))
+        events.remove(params)
+
+        for (const param of params)
+          this._removeEventListener(param.type, param.handler, param.options)
+      }
+    },
+    dispatch(type, props) {
+      props = assign({ bubbles: true }, props)
+
+      this.dispatchEvent(new (class extends Event {
+        constructor() {
+          super(type, props)
+          define(this, props)
+        }
+      })())
+    },
+    listen(type, handler, options) {
+      const unlisten = () => this._removeEventListener(type, handler, options)
+      function delegate(e) {
+        return handler(define(e, { unlisten }))
+      }
+
+      const events = EventTarget.targets.get(this) ?? EventTarget.targets.set(this, []).get(this)
+      const target = this
+      const state = {
+        type,
+        handler: delegate,
+        options,
+        method: 'listen',
+        unlisten() {
+          target._removeEventListener(this.type, this.handler, this.options)
+        },
+      }
+      events.push(state)
+
+      this._addEventListener(type, delegate, options)
+      return state
+    },
+    unlisten(type) {
+      const events = EventTarget.targets.get(this)
+      if (events) {
+        const params = isstr(type) ? events.filter(s => s.type == type) : (isfn(type) ? events.filter(s => s.handler == type) : [])
+        events.remove(params)
+
+        for (const param of params)
+          this._removeEventListener(param.type, param.handler, param.options)
+      }
+    },
+  })
+}
+function defineGlobalFunctions(targetWindow) {
+  targetWindow ??= window
+  extend(targetWindow, {
     MONKEY_VERSION,
 
     //--------------- helpers.js ---------------
@@ -1599,11 +1603,9 @@ function defineGlobals(target) {
     html,
 
     //--------------- extend-more.js ---------------
-    defineGlobals,
-    exposeUnsafe,
+    defineGlobalExtensions,
+    defineGlobalFunctions,
   })
 }
-function exposeUnsafe() {
-  defineGlobals(unsafeWindow)
-}
-defineGlobals(window)
+defineGlobalExtensions()
+defineGlobalFunctions()
