@@ -1,4 +1,4 @@
-const MONKEY_VERSION = 63
+const MONKEY_VERSION = 64
 
 defineGlobalExtensions()
 defineGlobalFunctions()
@@ -458,6 +458,17 @@ function openStore(id) {
     },
   })
 }
+function hideInactiveCursor(sel) {
+  const album = $(sel)
+
+  let timeoutId
+  album.addEventListener('mousemove', e => {
+    album.style.setProperty('cursor', 'auto')
+
+    clearTimeout(timeoutId)
+    timeoutId = setTimeout(() => album.style.setProperty('cursor', 'none'), 1000)
+  })
+}
 
 /*=============== image.js ===============*/
 function attachImageEventHandlers() {
@@ -486,9 +497,8 @@ const eventElementPrototypes = [
   Document.prototype,
   Window.prototype,
 ]
-const eventNames = eventElementPrototypes
-  .flatMap(s => keys(s).filter(key => isstr(key) && key.startsWith('on')))
-  .unique()
+const eventNames = unique(eventElementPrototypes
+  .flatMap(s => keys(s).filter(key => isstr(key) && key.startsWith('on'))))
 
 for (const prototype of eventElementPrototypes)
   undefine(prototype, eventNames)
@@ -746,6 +756,29 @@ function stopExecute(sel) {
   })
   obs.observe(document, { childList: true, subtree: true })
 }
+function scripts() {
+  return new Promise(resolve => {
+
+    const codes = []
+    const obs = new MutationObserver(muts => {
+      for (const m of muts) {
+        for (const n of m.addedNodes) {
+          if (n.matches?.('script')) {
+            codes.push(n.text)
+
+            n.text = ''
+            n.remove()
+          }
+        }
+      }
+    })
+    obs.observe(document, { childList: true, subtree: true })
+
+    onload = e => {
+      obs.disconnect()
+    }
+  })
+}
 
 /*=============== font.js ===============*/
 // Common inputs:
@@ -881,6 +914,9 @@ function style(css) {
       errored.forEach(img => img.reload())
 
       toast('Reloading images', `Reloading ${errored.length}/${images.length} images`)
+    }
+    else if (e.code == 'NumpadEnter') {
+      window.close()
     }
   })
 }
@@ -1668,6 +1704,7 @@ function defineGlobalFunctions(targetWindow) {
 
     //--------------- tools.js ---------------
     openStore,
+    hideInactiveCursor,
 
     //--------------- image.js ---------------
     attachImageEventHandlers,
