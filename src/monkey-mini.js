@@ -1,4 +1,4 @@
-const MONKEY_VERSION = 64
+const MONKEY_VERSION = 65
 
 defineGlobalExtensions()
 defineGlobalFunctions()
@@ -459,15 +459,17 @@ function openStore(id) {
   })
 }
 function hideInactiveCursor(sel) {
-  const album = $(sel)
-
+  const elems = $$(sel)
+  
   let timeoutId
-  album.addEventListener('mousemove', e => {
+  function onmousemove(e) {
     album.style.setProperty('cursor', 'auto')
 
     clearTimeout(timeoutId)
     timeoutId = setTimeout(() => album.style.setProperty('cursor', 'none'), 1000)
-  })
+  }
+
+  elems.forEach(s => s.addEventListener('mousemove', onmousemove))
 }
 
 /*=============== image.js ===============*/
