@@ -1,4 +1,4 @@
-const MONKEY_VERSION = 65
+const MONKEY_VERSION = 66
 
 defineGlobalExtensions()
 defineGlobalFunctions()
@@ -463,10 +463,10 @@ function hideInactiveCursor(sel) {
   
   let timeoutId
   function onmousemove(e) {
-    album.style.setProperty('cursor', 'auto')
+    elems.forEach(el => el.style.setProperty('cursor', 'auto'))
 
     clearTimeout(timeoutId)
-    timeoutId = setTimeout(() => album.style.setProperty('cursor', 'none'), 1000)
+    timeoutId = setTimeout(() => elems.forEach(el => el.style.setProperty('cursor', 'none')), 1000)
   }
 
   elems.forEach(s => s.addEventListener('mousemove', onmousemove))
@@ -646,7 +646,7 @@ function imagePage(sel, root) {
       let prevState = this.current
       //return scr.addEventListener('scroll', e => {
       return document.addEventListener('scroll', e => {
-        console.log('scrollWatcher', e)
+        //console.log('scrollWatcher', e)
         const state = this.current
         if (state != prevState)
           fn({
@@ -758,7 +758,7 @@ function stopExecute(sel) {
   })
   obs.observe(document, { childList: true, subtree: true })
 }
-function scripts() {
+/*function scripts() {
   return new Promise(resolve => {
 
     const codes = []
@@ -780,7 +780,7 @@ function scripts() {
       obs.disconnect()
     }
   })
-}
+}/**/
 
 /*=============== font.js ===============*/
 // Common inputs:
