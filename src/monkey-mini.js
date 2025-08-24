@@ -1,4 +1,4 @@
-const MONKEY_VERSION = 66
+const MONKEY_VERSION = 67
 
 defineGlobalExtensions()
 defineGlobalFunctions()
@@ -602,9 +602,6 @@ async function loadPages(selTarget, selImages, selPagination, fnMove, fnUrl, fnN
     })
   }
   toast('Loading complete', `${urls.length} pages, ${count} => ${$$(selImages).length} images`)
-
-  //gallery(selImages)
-  //progress()
 }
 function imagePage(sel, root) {
   return {
@@ -612,9 +609,9 @@ function imagePage(sel, root) {
       return $$(sel, root)
     },
     get index() {
-      if (this.isAbove)
+      if (this.isAbove(false))
         return 0
-      if (this.isBelow)
+      if (this.isBelow(true))
         return this.total - 1
       return this.images.findIndex(s => s == this.current)
     },
@@ -636,11 +633,15 @@ function imagePage(sel, root) {
     get shouldLatchUp() {
       return this.images.last.rect.y <= 0 && this.images.last.rect.y > innerHeight
     },
-    get isAbove() {
-      return this.images[0].rect.y >= 0
+    isAbove(downward) {
+      if (!downward)
+        return this.images[0].rect.y >= 0
+      return this.images[0].rect.y >= innerHeight
     },
-    get isBelow() {
-      return this.images.last.rect.y <= 0
+    isBelow(downward) {
+      if (downward)
+        return this.images.last.rect.y <= 0
+      return this.images.last.rect.y <= -innerHeight
     },
     scrollWatcher(fn) {
       let prevState = this.current
@@ -660,6 +661,7 @@ function imagePage(sel, root) {
   }
 }
 function gallery(sel, root, forceStopOtherHandlers = false) {
+  //=============== MOBILE ONLY ===============
   if (isMobile()) {
     const images = $$(sel, root)
     images.forEach((el, i) => {
@@ -673,6 +675,7 @@ function gallery(sel, root, forceStopOtherHandlers = false) {
       }
     })
   }
+  //=============== DESKTOP ONLY ===============
   else {
     const imageHandle = imagePage(sel, root)
 
@@ -681,26 +684,36 @@ function gallery(sel, root, forceStopOtherHandlers = false) {
 
     const eventHandle = window.addEventListener('keydown', e => {
       if (e.key == 'ArrowLeft') {
-        if (imageHandle.shouldLatchUp)
+        if (imageHandle.shouldLatchUp)  {
+          body.style.setProperty('cursor', 'none')
           imageHandle.prev?.instantScroll()
-        else if (imageHandle.isAbove)
-          animScroll(0, -800, 400)
-        else if (imageHandle.isBelow)
-          animScroll(0, 800, 400)
-        else
+        }
+        else if (imageHandle.isAbove(false) || imageHandle.isBelow(false)) {
+          animScroll(0, -innerHeight * .9, 250)
+        }
+        else {
+          body.style.setProperty('cursor', 'none')
           imageHandle.prev?.instantScroll()
+        }
       }
       else if (e.key == 'ArrowRight') {
-        if (imageHandle.shouldLatchDown)
+        if (imageHandle.shouldLatchDown) {
+          body.style.setProperty('cursor', 'none')
           imageHandle.next?.instantScroll()
-        else if (imageHandle.isAbove)
-          animScroll(0, -800, 400)
-        else if (imageHandle.isBelow)
-          animScroll(0, 800, 400)
-        else
+        }
+        else if (imageHandle.isAbove(true) || imageHandle.isBelow(true)) {
+          animScroll(0, innerHeight * .9, 250)
+        }
+        else {
+          body.style.setProperty('cursor', 'none')
           imageHandle.next?.instantScroll()
+        }
       }
     }, { capture: true })
+
+    body.addEventListener('mousemove', e => {
+      body.style.setProperty('cursor', 'auto')
+    })
 
     return {
       imageHandle,
@@ -861,14 +874,14 @@ function toast(title, text, duration) {
   box-shadow: #00000060 0px 3px 8px, #00000080 0px 3px 16px;
 }
 #monkey #toast .title {
-  font-family: initial;
+  font-family: "Segoe UI", sans-serif;
   font-size: .85rem;
   font-weight: 700;
   line-height: 1.1667;
   text-transform: uppercase;
 }
 #monkey #toast .text {
-  font-family: initial;
+  font-family: "Segoe UI", sans-serif;
   font-size: 1.1rem;
   font-weight: 400;
   line-height: 1.3333;
@@ -898,17 +911,13 @@ function toast(title, text, duration) {
 }
 
 /*=============== style.js ===============*/
-function style(css) {
-  let el = elem('style#monkey-style', css)
-  head.append(el)
-
+function hotkeys() {
   window.addEventListener('keydown', e => {
-    if (e.ctrlKey && e.code == 'Numpad0') {
-      if (el.isMounted)
-        el.remove()
-      else
-        head.append(el)
+    //##################### Close tab #####################
+    if (e.code == 'Numpad0') {
+      window.close()
     }
+    //############### Reload errored images ###############
     else if (e.code == 'Numpad1') {
       const images = $$('img')
       const errored = images.filter(img => img.isErrored || img.errored)
@@ -917,26 +926,115 @@ function style(css) {
 
       toast('Reloading images', `Reloading ${errored.length}/${images.length} images`)
     }
-    else if (e.code == 'NumpadEnter') {
-      window.close()
+    //################ Toggle monkey style ################
+    else if (e.code == 'Numpad2') {
+      const styleElem = $('style#monkey-style')
+      if (styleElem.isMounted)
+        styleElem.remove()
+      else
+        head.append(styleElem)
+    }
+    //################## Toast page info ##################
+    else if (e.code == 'Numpad3') {
+      const violations = styleViolations()
+      if (violations.length > 0)
+        console.log('violations', violations)
+
+      const images = $$('img')
+      const guess = guessGallery()
+      console.log('guess', guess)
+
+      toast('Page info', `${violations.length} violations\n${guess.length}/${images.length} guessed images`)
     }
   })
 }
-function usualStyleViolations() {
+function style(css) {
+  head.append(elem('style#monkey-style', css))
+  hotkeys()
+}
+function guessGallery(attrDiffLimit = 40, sharedDiffLimit = 40) {
+  // Guesses
+  // - Close closest shared parent
+  // - Closest shared parent similar distance away
+  // - Attributes present (decoding, loading, alt)
+  // - Attributes are the same name between all of them
+  // - Reasonable size (or errored)
+  // - Often seen selectors (.entry-content, article)
+  const considering = $$('img[src], img[data-src]')
+
+  let data = considering.map(el => {
+    return {
+      element: el,
+      shortSide: el.naturalWidth < el.naturalHeight ? el.naturalWidth : el.naturalHeight,
+    }
+  })
+  data = data.filter(item => item.shortSide == 0 || item.shortSide > 500)
+  data = data.map(item => {
+    return {
+      ...item,
+      attribs: arr(item.element.attributes).reduce((s, n) => assign(s, { [n.name]: n.value }), {}),
+    }
+  })
+  data = data.map(item => {
+    return {
+      ...item,
+      shareds: data.map(s => item.element.closestShared(s.element)),
+      attrDiffs: data.map(s => diff(item.attribs, s.attribs)),
+    }
+  })
+  data = data.map(item => {
+    return {
+      ...item,
+      attrScores: item.attrDiffs.map(other =>
+        (
+          ent(item.attribs).flat().filter(s => !!s).length
+            - 
+          keys(other).map(key => other[key]).flatMap(s => [s.a, s.b]).filter(s => !!s).length
+        )
+      ),
+      sharedScores: item.shareds.map(other => (other.stepsA - other.stepsB - Math.abs(other.stepsA - other.stepsB)))
+    }
+  })
+  data = data.map(item => {
+    return {
+      ...item,
+      totalAttrScore: item.attrScores.reduce((a, b) => a + b),
+      totalSharedScore: item.sharedScores.reduce((a, b) => a + b),
+    }
+  })
+  const avgAttrScore = data.avg(s => s.totalAttrScore)
+  data = data.filter(item => Math.abs(item.totalAttrScore - avgAttrScore) < attrDiffLimit)
+  const avgSharedScore = data.avg(s => s.totalSharedScore)
+  data = data.filter(item => Math.abs(item.totalSharedScore - avgSharedScore) < sharedDiffLimit)
+
+  return data
+}
+function styleViolations() {
+  function violatingRules(s) {
+    const output = []
+    if (['fixed', 'sticky', 'absolute'].includes(s.position))
+      output.push('position')
+    if (!['none', '100%'].includes(s['max-width']))
+      output.push('max-width')
+    if (s.visibility != 'visible')
+      output.push('visibility')
+    if (s.opacity != '1')
+      output.push('opacity')
+    if (s.transform != 'none')
+      output.push('transform')
+    if (s.float != 'none')
+      output.push('float')
+    return output
+  }
   return $$('*')
     .map(s => {
+      const comp = s.compStyle
       return {
         element: s,
-        style: s.compStyle,
+        bad: obj(violatingRules(comp).map(s => [s, comp[s]])),
       }
     })
-    .filter(s => s.style.position == 'fixed'
-      || s.style.position == 'sticky'
-      || s.style.position == 'absolute'
-      || s.style.opacity.toInt() < 1
-      || s.style.transform != 'none'
-      || s.style.float != 'none'
-    )
+    .filter(s => keys(s.bad).length > 0)
 }
 
 /*=============== tagged-template.js ===============*/
@@ -973,6 +1071,16 @@ function defineGlobalExtensions(targetWindow) {
 
   define(targetWindow.Symbol, {
     extensions: targetWindow.Symbol.extensions ?? Symbol('extensions'),
+  })
+  extend(targetWindow.console, {
+    stored: [],
+    store(...args) {
+      this.stored.push(...args.map(s => isobj(s) ? structuredClone(s) : s))
+    },
+    log(...args) {
+      this._log(...this.stored, ...args)
+      this.stored = []
+    },
   })
   extend(targetWindow.String.prototype, {
     toInt() {
@@ -1175,6 +1283,12 @@ function defineGlobalExtensions(targetWindow) {
     max(fn = s => s) {
       return this.reduce((s, n) => fn(s) > fn(n) ? s : n)
     },
+    sum(fn = s => s) {
+      return this.reduce((s, n) => s + fn(n), 0)
+    },
+    avg(fn = s => s) {
+      return this.sum(fn) / this.length
+    },
     minIndex(fn = s => s) {
       return this.reduce((s, n, i) => fn(this[s]) < fn(n) ? s : i, 0)
     },
@@ -1255,31 +1369,38 @@ function defineGlobalExtensions(targetWindow) {
     get body() {
       return this.document.body
     },
+    animScrolling: false,
     animScroll(x, y, duration) {
-      let startTime
-      const originX = document.scrollingElement.scrollLeft
-      const originY = document.scrollingElement.scrollTop
-      const targetX = document.scrollingElement.scrollLeft + x
-      const targetY = document.scrollingElement.scrollTop + y
-      const rightward = originX < targetX
-      const downward = originY < targetY
-      function step(currentTime) {
-        startTime ??= currentTime
+      if (!this.animScrolling) {
+        const originX = document.scrollingElement.scrollLeft
+        const originY = document.scrollingElement.scrollTop
+        const targetX = document.scrollingElement.scrollLeft + x
+        const targetY = document.scrollingElement.scrollTop + y
+        const rightward = originX < targetX
+        const downward = originY < targetY
 
-        const elapsed = currentTime - startTime
-        let currentX = originX + (targetX - originX) / duration * elapsed
-        let currentY = originY + (targetY - originY) / duration * elapsed
-        if ((rightward && currentX > targetX) || (!rightward && targetX > currentX))
-          currentX = targetX
-        if ((downward && currentY > targetY) || (!downward && targetY > currentY))
-          currentY = targetY
-        document.scrollingElement.scrollLeft = currentX
-        document.scrollingElement.scrollTop = currentY
+        let startTime
+        function step(currentTime) {
+          startTime ??= currentTime
+          this.animScrolling = true
 
-        if (currentX != targetX || currentY != targetY)
-          requestAnimationFrame(step)
+          const elapsed = currentTime - startTime
+          let currentX = originX + (targetX - originX) / duration * elapsed
+          let currentY = originY + (targetY - originY) / duration * elapsed
+          if ((rightward && currentX > targetX) || (!rightward && targetX > currentX))
+            currentX = targetX
+          if ((downward && currentY > targetY) || (!downward && targetY > currentY))
+            currentY = targetY
+          document.scrollingElement.scrollLeft = currentX
+          document.scrollingElement.scrollTop = currentY
+
+          if (currentX != targetX || currentY != targetY)
+            requestAnimationFrame(step)
+          else
+            this.animScrolling = false
+        }
+        requestAnimationFrame(step)
       }
-      requestAnimationFrame(step)
     },
   })
   extend(targetWindow.Document.prototype, {
@@ -1322,33 +1443,40 @@ function defineGlobalExtensions(targetWindow) {
     instantScroll() {
       this.scrollIntoView({ behavior: 'instant', block: 'end' })
     },
+    animScrolling: false,
     animScroll(x, y, duration) {
-      let startTime
-      const distanceX = x + this.rect.x
-      const distanceY = y + this.rect.y
-      const originX = document.scrollingElement.scrollLeft
-      const originY = document.scrollingElement.scrollTop
-      const targetX = document.scrollingElement.scrollLeft + distanceX
-      const targetY = document.scrollingElement.scrollTop + distanceY
-      const rightward = originX < targetX
-      const downward = originY < targetY
-      function step(currentTime) {
-        startTime ??= currentTime
+      if (!this.animScrolling) {
+        const distanceX = x + this.rect.x
+        const distanceY = y + this.rect.y
+        const originX = document.scrollingElement.scrollLeft
+        const originY = document.scrollingElement.scrollTop
+        const targetX = document.scrollingElement.scrollLeft + distanceX
+        const targetY = document.scrollingElement.scrollTop + distanceY
+        const rightward = originX < targetX
+        const downward = originY < targetY
 
-        const elapsed = currentTime - startTime
-        let currentX = originX + (targetX - originX) / duration * elapsed
-        let currentY = originY + (targetY - originY) / duration * elapsed
-        if ((rightward && currentX > targetX) || (!rightward && targetX > currentX))
-          currentX = targetX
-        if ((downward && currentY > targetY) || (!downward && targetY > currentY))
-          currentY = targetY
-        document.scrollingElement.scrollLeft = currentX
-        document.scrollingElement.scrollTop = currentY
+        let startTime
+        function step(currentTime) {
+          startTime ??= currentTime
+          this.animScrolling = true
 
-        if (currentX != targetX || currentY != targetY)
-          requestAnimationFrame(step)
+          const elapsed = currentTime - startTime
+          let currentX = originX + (targetX - originX) / duration * elapsed
+          let currentY = originY + (targetY - originY) / duration * elapsed
+          if ((rightward && currentX > targetX) || (!rightward && targetX > currentX))
+            currentX = targetX
+          if ((downward && currentY > targetY) || (!downward && targetY > currentY))
+            currentY = targetY
+          document.scrollingElement.scrollLeft = currentX
+          document.scrollingElement.scrollTop = currentY
+
+          if (currentX != targetX || currentY != targetY)
+            requestAnimationFrame(step)
+          else
+            this.animScrolling = false
+        }
+        requestAnimationFrame(step)
       }
-      requestAnimationFrame(step)
     },
     append(...args) {
       return call(domInsert, this, this._append, args)
@@ -1478,6 +1606,27 @@ function defineGlobalExtensions(targetWindow) {
     },
     get nodes() {
       return arr(document.createNodeIterator(this, NodeFilter.SHOW_ALL))
+    },
+    closestShared(other) {
+      if (this == other)
+        return {
+          element: this,
+          stepsA: 0,
+          stepsB: 0,
+        }
+
+      const a = this.parentIter().reverse()
+      const b = other.parentIter().reverse()
+
+      let i = 0
+      while (a[i] && b[i] && a[i] == b[i])
+        i++
+
+      return {
+        element: a[i - 1],
+        stepsA: a.length - (i - 1),
+        stepsB: b.length - (i - 1),
+      }
     },
     prevIter() {
       const output = []
@@ -1736,8 +1885,9 @@ function defineGlobalFunctions(targetWindow) {
     toast,
 
     //--------------- style.js ---------------
+    hotkeys,
     style,
-    usualStyleViolations,
+    styleViolations,
 
     //--------------- tagged-template.js ---------------
     imp,
