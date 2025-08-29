@@ -1,4 +1,4 @@
-const MONKEY_VERSION = 67
+const MONKEY_VERSION = 68
 
 defineGlobalExtensions()
 defineGlobalFunctions()
@@ -602,6 +602,27 @@ async function loadPages(selTarget, selImages, selPagination, fnMove, fnUrl, fnN
     })
   }
   toast('Loading complete', `${urls.length} pages, ${count} => ${$$(selImages).length} images`)
+}
+async function loadPages2(fnInsert, fnMakeUrl, fnMaxNum, fnSelect) {
+  const urls = range(fnMaxNum())
+    .map(s => s + 1)
+    .map(s => fnMakeUrl(s))
+    .slice(1)
+  
+  const oldImages = fnSelect(document)
+  fnInsert(oldImages)
+  
+  let count = oldImages.length
+  for (const url of urls) {
+    const dom = await GM_fetch(url)
+
+    const newImages = fnSelect(dom).map(s => document.adoptNode(s))
+    fnInsert(newImages)
+    console.log(`Loading ${newImages.length} new images`)
+
+    count += newImages.length
+  }
+  toast('Loading complete', `${urls.length} pages, ${oldImages.length} => ${count} images`)
 }
 function imagePage(sel, root) {
   return {
