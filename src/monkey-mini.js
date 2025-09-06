@@ -1,4 +1,4 @@
-const MONKEY_VERSION = 68
+const MONKEY_VERSION = 69
 
 defineGlobalExtensions()
 defineGlobalFunctions()
@@ -1372,6 +1372,73 @@ function defineGlobalExtensions(targetWindow) {
   extend(targetWindow.Iterator.prototype, {
     filter(fn = s => s) {
       return this._filter(fn)
+    },
+    toArray() {
+      return arr(this)
+    },
+  })
+  extend(AsyncGenerator.prototype, {
+    async *filter(fn = s => s) {
+      let i = 0
+      for await (const item of this) {
+        if (fn(item, i, this))
+          yield item
+        i++
+      }
+    },
+    async *map(fn) {
+      let i = 0
+      for await (const item of this) {
+        yield fn(item, i, this)
+        i++
+      }
+    },
+    async *flatMap(fn) {
+      let i = 0
+      for await (const item of this) {
+        const result = fn(item, i, this)
+        if (isarr(result))
+          yield* item
+        else
+          yield item
+        i++
+      }
+    },
+    async forEach(fn) {
+      let i = 0
+      for await (const item of this) {
+        fn(item, i, this)
+        i++
+      }
+    },
+    async reduce(fn, initial) {
+      let i = 0
+      if (initial === undefined) {
+        initial = this.next().value
+        i++
+      }
+      for await (const item of this) {
+        initial = fn(initial, item, i, this)
+        i++
+      }
+      return initial
+    },
+    async find(fn) {
+      let i = 0
+      for await (const item of this) {
+        if (fn(item, i, this))
+          return item
+        i++
+      }
+    },
+    async toArray() {
+      let i = 0
+      const output = []
+      for await (const item of this) {
+        output.push(item)
+        i++
+      }
+      return output
     },
   })
   extend(targetWindow.Window.prototype, {
