@@ -1,4 +1,9 @@
-const MONKEY_VERSION = 69
+const MONKEY_VERSION = 70
+
+/*=============== global.js ===============*/
+const Generator = function*(){}.constructor.prototype
+const AsyncGenerator = async function*(){}.constructor.prototype
+const AsyncFunction = async function(){}.constructor
 
 defineGlobalExtensions()
 defineGlobalFunctions()
@@ -189,10 +194,6 @@ function passed(since) {
 }
 
 /*=============== type.js ===============*/
-const Generator = function*(){}.constructor.prototype
-const AsyncGenerator = async function*(){}.constructor.prototype
-const AsyncFunction = async function(){}.constructor
-
 function type(s) {
   if (s === null)
     return 'null'
